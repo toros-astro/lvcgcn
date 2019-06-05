@@ -1,0 +1,15 @@
+# This is a template for the systemd .service file.
+# Comments will be stripped off when installed.
+[Unit]
+Description=The LVC-GCN Service for TOROS
+After=network.target
+
+[Service]
+Type=simple
+User=root
+#WorkingDirectory=/home/myuser
+ExecStart=/path/to/listen/script
+Restart=on-failure
+
+# [Install]
+# WantedBy=othertorosservice

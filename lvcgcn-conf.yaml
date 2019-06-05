@@ -1,0 +1,74 @@
+LIGO Run: O3
+
+Catalog Path: /path/to/catalog/file.csv ## Add this as a resource in the package
+
+# Parameters to filter galaxy selection criteria
+Catalog Filters: {
+  NUM_TARGETS: 30,     # Number of targets per observatory
+  MAX_DIST:    120.0,   # Distance cut in Mpc
+  MAX_APP_MAG: 19.0,   # Apparent Magnitude cut
+  MAX_ABS_MAG: -17.5   # Absolute Magnitude cut
+}
+
+Observatories:
+-
+  name: OBS01
+  location: {
+    lon: -64.5467, # degrees
+    lat: -31.5983, # degres
+    height: 1350   # meters
+    }
+-
+  name: OBS02
+  location: {
+    lon: -67.2995, # degrees
+    lat: -24.5554, # degrees
+    height: 4600   # meters
+    }
+-
+  name: OBS03
+  location: {
+    lon: -97.568956, # degrees
+    lat: 25.995789,  # degrees
+    height: 12       # meters
+    }
+
+# Respond to mock alerts
+DEBUG_TEST: false
+
+# Sender email configuration
+Email Configuration: {
+  # Gmail account example
+  SMTP Domain: smtp.gmail.com:587,
+  Sender Address: example@gmail.com,
+  Login Required: true,
+  Username: yourUserName,  # null if not needed
+  Password: $ecretPassw0rd,  # null if not needed
+}
+
+Admin Emails:
+- torosadmin@utrgv.edu
+
+Alert Recipients:
+- person01@example.com
+- person02@example.com
+
+Broker Upload: {
+  site url: https://toros.utrgv.edu/,
+  login url: https://toros.utrgv.edu/account/login/,
+  uploadjson url: https://toros.utrgv.edu/broker/uploadjson/,
+  logout url: https://toros.utrgv.edu/account/logout/,
+  username: admin,
+  password: Adm1nPa$$word
+}
+
+Logging: {
+  File: /etc/toros/lvcgcnd.log,
+  Log Level: INFO
+}
+
+Backup: {
+  Do Backup: true,
+  Skymap Backup Dir: /var/toros/skymaps,
+  VOEvent Backup Dir: /var/toros/VOEvents
+}
