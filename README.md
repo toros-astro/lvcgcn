@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/toros-astro/lvcgcn.svg?branch=master)](https://travis-ci.org/toros-astro/lvcgcn)
+[![Coverage](https://codecov.io/gh/toros-astro/lvcgcn/branch/master/graphs/badge.svg?branch=master)](https://codecov.io/gh/toros-astro/lvcgcn)
 # The LVC GCN Daemon Service
 
 This is intended to perform various tasks
