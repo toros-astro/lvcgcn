@@ -4,8 +4,8 @@ python:
   - "3.6"
 
 install:
-  - pip install pygcn, numpy, scipy, astropy, healpy
-  - pip install requests, pyyaml, loguru
+  - pip install pygcn numpy scipy astropy healpy
+  - pip install requests pyyaml loguru
   - pip install codecov
 
 script:
