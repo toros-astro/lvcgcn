@@ -252,7 +252,7 @@ def retrieve_skymap(info):
 
     fits_response = requests.get(info['skymap_url'], stream=False)
     fits_response.raise_for_status()
-    fp = tempfile.NamedTemporaryFile("wb")
+    fp = tempfile.NamedTemporaryFile()
     for block in fits_response.iter_content(1024):
         fp.write(block)
     fp.seek(0)
