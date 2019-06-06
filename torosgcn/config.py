@@ -46,6 +46,15 @@ def init_logger():
                    backtrace=True,
                    )
     logger.info("LVC-GCN service started.")
+    logger.info("Logger level set to {}".format(log_level))
+
+    # Intercept stdlib logging and redirect to loguru
+    import logging
+    class InterceptHandler(logging.Handler):
+        def emit(self, record):
+            logger_opt = logger.opt(depth=6, exception=record.exc_info)
+            logger_opt.log(record.levelno, record.getMessage())
+    logging.basicConfig(handlers=[InterceptHandler()], level=logging.NOTSET)
 
 import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
