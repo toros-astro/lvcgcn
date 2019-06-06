@@ -38,14 +38,11 @@ def sendemail(msg_text, subject, recipients=None, attachments=[]):
     msg['Date'] = formatdate(localtime=True)
     msg.attach(MIMEText(msg_text))
 
-    for attachfilename in attachments:
-        with open(attachfilename, "rb") as f:
-            msg.attach(MIMEApplication(
-                f.read(),
-                Content_Disposition='attachment; filename="{}"'
-                .format(os.path.basename(attachfilename)),
-                Name=os.path.basename(attachfilename))
-            ) 
+    for attachdata, fname in attachments:
+        msg.attach(MIMEApplication(attachdata,
+            Content_Disposition='attachment; filename="{}"'.format(fname),
+            Name=fname)
+        )
 
     # The actual mail send
     try:
@@ -63,7 +60,7 @@ def sendemail(msg_text, subject, recipients=None, attachments=[]):
         logger.error("SMTP Service not configured. Unable to send email.")
 
 
-def sendalertemail(voexml_filename, info):
+def sendalertemail(payload, info):
     pre_subject, pre_warning = "", ""
     if info['role'] == 'test':
         pre_subject = "[TEST: Mock Alert] "
@@ -108,7 +105,54 @@ or the GraceDB Event Page: {2}
     ADMIN_EMAILS = config.get_config_for_key('Admin Emails')
     recipients = ADMIN_EMAILS if info['role'] == 'test' else None
     sendemail(msg_text, subject, recipients=recipients,
-              attachments=[voexml_filename])
+              attachments=[(payload, "VOEvent.xml")])
+
+
+def send_upload_confirmation_email(obs, info, error_message=None):
+    if obs is not None:
+        broker_uploadstring = ("Broker upload-string to manually "
+            "upload targets:\n\n{}").format(
+            scheduler.broker_uploadstring(obs))
+    else:
+        broker_uploadstring = "There were no targets to upload."
+
+    pre_subject, pre_warning = "", ""
+    if info['role'] == 'test':
+        pre_subject = "[TEST: Mock Alert] "
+        pre_warning = "WARNING: The following is a Mock Alert.\n"
+    elif info['role'] == 'drill':
+        pre_subject = "[DRILL: Mock Alert] "
+        pre_warning = "WARNING: The following is a Drill.\n"
+
+    if error_message is None: 
+        msg_text = ("{0}\n\n{1} GCN for LVC super event {2} "
+                    "was successfully uploaded to broker.\n"
+                    "For more info, check the broker alert page: https://toros.utrgv.edu/broker/alert/{2}\n"
+                    "and the LVC event page: {3}\n\n{4}")\
+                    .format(
+                        pre_warning,
+                        info.get('alert_type'),
+                        info.get('graceid'),
+                        info.get('eventpage'),
+                        broker_uploadstring,
+                        )
+    else:
+        msg_text = ("{0}\n\nError uploading {1} GCN for LVC super event {2}.\n"
+        "For more info, check the broker alert page: https://toros.utrgv.edu/broker/alert/{2}\n"
+        "and the LVC event page: {3}\n\n{4}\n"
+        "Error Trace:\n{5}\n").format(
+            pre_warning,
+            info.get('alert_type'),
+            info.get('graceid'),
+            info.get('eventpage'),
+            broker_uploadstring,
+            error_message,
+            )
+    email_subject = "{}{} GCN for {}".format(
+        pre_subject, info.get('alert_type'), info.get('graceid'),
+        )
+    ADMIN_EMAILS = config.get_config_for_key('Admin Emails')
+    sendemail(msg_text, email_subject, recipients=ADMIN_EMAILS)
 
 
 def getinfo(root):
@@ -199,60 +243,55 @@ def getinfo(root):
     else:
         logger.error("Could not find tag `ISOTime` in XML.")
         info['datetime'] = None
-
     return info
 
 
+def retrieve_skymap(info):
+    import requests
+    import tempfile
+
+    fits_response = requests.get(info['skymap_url'], stream=False)
+    fits_response.raise_for_status()
+    fp = tempfile.NamedTemporaryFile("wb")
+    for block in fits_response.iter_content(1024):
+        fp.write(block)
+    fp.seek(0)
+    skymap_data = fp.read()
+    fp.close()
+
+    try:
+        bkp_config = config.get_config_for_key('Backup')
+        if bkp_config.get('Backup Skymap'):
+            backup_skymap(skymap_data, info)
+    except:
+        logger.exception("Skymap backup failed.")
+    return skymap_data
+
+
 def upload_gcnnotice(info):
+    error_msg = None
     if info.get('skymap_url') is not None:
-        fitsfilename = 'skymap_basic_{}.fits'.format(info.get('graceid'))
         try:
-            import requests
-            fits_response = requests.get(info['skymap_url'], stream=False)
-            fits_response.raise_for_status()
-            with open(fitsfilename, 'wb') as f:
-                for block in fits_response.iter_content(1024):
-                    f.write(block)
-        except:
+            skymap_data = retrieve_skymap(info)
+            try:
+                import tempfile
+                with tempfile.NamedTemporaryFile("wb") as fp:
+                    fp.write(skymap_data)
+                    fp.seek(0)
+                    obs = scheduler.generate_targets(fp.name)
+            except Exception as e:
+                logger.exception("Error generating targets")
+                obs = None
+                error_msg = str(e)
+        except Exception as e:
             logger.exception(
                 "Error downloading FITS skymap for Grace ID: {} from URL: {}"\
-                .format(info['graceid'], info['skymap_url'])
+                .format(info.get('graceid'), info.get('skymap_url'))
                 )
-        obs = scheduler.generate_targets(fitsfilename)
-        broker_upload_string = scheduler.broker_uploadstring(obs)
+            obs = None
+            error_msg = str(e)
     else:
-        # obs = None flags for no assignments
         obs = None
-        broker_upload_string = ""
-
-    pre_subject, pre_warning = "", ""
-    if info['role'] == 'test':
-        pre_subject = "[TEST: Mock Alert] "
-        pre_warning = "WARNING: The following is a Mock Alert.\n"
-    elif info['role'] == 'drill':
-        pre_subject = "[DRILL: Mock Alert] "
-        pre_warning = "WARNING: The following is a Drill.\n"
-    if obs:
-        broker_uploadstring = ("Broker upload-string to manually "
-            "upload targets:\n\n{}").format(
-            scheduler.broker_uploadstring(obs))
-    else:
-        broker_uploadstring = "There were no targets to upload."
-    msg_text = ("{}\n\n{} GCN for LVC super event {} "
-                "was successfully uploaded to broker.\n"
-                "For more info, check the broker alert page: https://toros.utrgv.edu/broker/alert/{}\n"
-                "and the LVC event page: {}\n\n{}")\
-                .format(
-                    pre_warning,
-                    info.get('alert_type'),
-                    info.get('graceid'),
-                    info.get('graceid'),
-                    info.get('eventpage'),
-                    broker_uploadstring,
-                    )
-    email_subject = "{}{} GCN for {}".format(
-        pre_subject, info.get('alert_type'), info.get('graceid'),
-        )
 
     # Get Broker website config
     broker_conf = config.get_config_for_key('Broker Upload')
@@ -264,7 +303,6 @@ def upload_gcnnotice(info):
     broker_user_password = broker_conf.get('password')
     try:
         import requests
-
         # Log into a session with our user
         client = requests.session()
         client.get(url_login)
@@ -286,29 +324,33 @@ def upload_gcnnotice(info):
         # Log out
         r3 = client.get(url_logout, data={'sessionid': sessionid})
 
-    except:
-        msg_text = ("{}\n\nError uploading {} GCN for LVC super event {}.\n"
-            "For more info, check the broker alert page: https://toros.utrgv.edu/broker/alert/{}\n"
-            "and the LVC event page: {}\n\n{}")\
-            .format(
-                pre_warning,
-                info.get('alert_type'),
-                info.get('graceid'),
-                info.get('graceid'),
-                info.get('eventpage'),
-                broker_uploadstring,
-                )
+    except Exception as e:
         logger.exception("Could not upload target list using HTTP post method.")
         logger.debug(targetsjson)
+        error_msg = str(e)
 
-    ADMIN_EMAILS = config.get_config_for_key('Admin Emails')
-    sendemail(msg_text, email_subject, recipients=ADMIN_EMAILS)
+    send_upload_confirmation_email(obs, info, error_message=error_msg)
 
 
-def backup_voe(voevent_filename, info):
-    from shutil import copyfile
+def backup_skymap(skymap_data, info):
     bkp_config = config.get_config_for_key('Backup')
-    if not bkp_config.get('Do Backup'):
+    skymap_bkpdir = bkp_config.get('Skymap Backup Dir')
+    if not os.path.exists(skymap_bkpdir):
+        os.makedirs(skymap_bkpdir)
+
+    skymap_bkpname = "skymap_basic_{}_{}.fits".\
+        format(info.get('graceid'), info.get('alert_type'))
+
+    skymap_path = os.path.join(skymap_bkpdir, skymap_bkpname)
+    with open(skymap_path, "wb") as fp:
+        fp.write(skymap_data)
+    logger.info("Skymap file {} copied to {}".format(
+        skymap_bkpname, skymap_bkpdir))
+
+
+def backup_voe(payload, info):
+    bkp_config = config.get_config_for_key('Backup')
+    if not bkp_config.get('Backup VOEvent'):
         return
     voevent_bkpdir = bkp_config.get('VOEvent Backup Dir')
     if not os.path.exists(voevent_bkpdir):
@@ -317,7 +359,9 @@ def backup_voe(voevent_filename, info):
     voevent_bkpname = "VOE_{}_{}.xml".\
         format(info.get('graceid'), info.get('alert_type'))
 
-    copyfile(voevent_filename, os.path.join(voevent_bkpdir, voevent_bkpname))
+    voevent_path = os.path.join(voevent_bkpdir, voevent_bkpname)
+    with open(voevent_path, "w") as fp:
+        fp.write(str(payload, encoding='utf-8'))
     logger.info("VOE file {} copied to {}".format(
         voevent_bkpname, voevent_bkpdir))
 
@@ -331,12 +375,7 @@ def process_gcn(payload, root):
     "The callback function when a GCN is received."
     DEBUG_TEST = config.get_config_for_key('DEBUG_TEST') or False
 
-    # Save payload (VOE) to file
-    voevent_filename = 'VOEvent.xml'
-    with open(voevent_filename, 'w') as f:
-        f.write(str(payload, encoding='utf-8'))
-
-    # Get relevant info from VOEvent
+   # Get relevant info from VOEvent
     try:
         info = getinfo(root)
     except:
@@ -350,12 +389,13 @@ def process_gcn(payload, root):
 
     # Back up VOE file
     try:
-        backup_voe(voevent_filename, info)
+        backup_voe(payload, info)
     except:
         logger.exception("Error backing up VOE file.")
+
     # Send Alert by email
     try:
-        sendalertemail(voevent_filename, info)
+        sendalertemail(payload, info)
     except:
         logger.exception("Error sending alert email.")
     # Create and upload targets

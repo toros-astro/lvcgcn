@@ -93,9 +93,6 @@ class TestListen(unittest.TestCase):
 
     @mock.patch('torosgcn.listen.config.get_config_for_key')
     def test_sendemail(self, mock_conf):
-        fp = tempfile.NamedTemporaryFile("w+")
-        fp.write('person01@example.com\nperson02@example.com')
-        fp.seek(0)
         def get_config(arg):
             if arg == 'Email Configuration':
                 return {
@@ -104,10 +101,11 @@ class TestListen(unittest.TestCase):
                     'Login Required': True,
                     'Username': 'sender',
                     'Password': '$ecretP4ssw0rd',
-                    'Recipients File': fp.name,
                 }
             elif arg == 'Admin Emails':
                 return ['admin@example.com',]
+            elif arg == 'Alert Recipients':
+                return ['person01@example.com', 'person02@example.com']
             else:
                 return None
         mock_conf.side_effect = get_config
@@ -121,15 +119,13 @@ class TestListen(unittest.TestCase):
         smtplib.SMTP.side_effect = ValueError
         torosgcn.listen.sendemail(msg_text, subject, recipients=recipient)
         self.assertTrue(loguru.logger.error.called)
-        smtplib.SMTP.side_effect = ValueError
-        fp.close()
         smtplib.SMTP.side_effect = None
 
     @mock.patch('torosgcn.listen.config')
     @mock.patch('torosgcn.listen.sendemail')
     def test_sendalertemail(self, mock_sendemail, mock_config):
         mock_config.get_config_for_key.return_value(['admin@example.com'])
-        torosgcn.listen.sendalertemail("some path", self.info)
+        torosgcn.listen.sendalertemail("some payload", self.info)
         self.assertTrue(mock_sendemail.called)
         self.assertTrue(mock_config.get_config_for_key.called)
         (msg_text, subject), kwargs = mock_sendemail.call_args
@@ -145,7 +141,9 @@ class TestListen(unittest.TestCase):
         self.assertTrue('0.5' in msg_text)
         self.assertTrue('0.99' in msg_text)
         self.assertTrue(kwargs.get('recipients') is None)
-        self.assertEqual(kwargs.get('attachments'),  ["some path"])
+        self.assertTrue(isinstance(kwargs.get('attachments'), list))
+        self.assertTrue(isinstance(kwargs.get('attachments')[0], tuple))
+        self.assertEqual(kwargs.get('attachments')[0][0], 'some payload')
 
     def test_getinfo(self):
         from . import sample_data
@@ -324,34 +322,28 @@ class TestListen(unittest.TestCase):
         self.assertTrue(loguru.logger.exception.called)
         mock_upload.side_effect = None
 
-
+    @mock.patch('builtins.open')
     @mock.patch('torosgcn.listen.config.get_config_for_key')
-    @mock.patch('shutil.copyfile')
     @mock.patch('torosgcn.listen.os')
-    def test_backup_voe(self, mock_os, mock_copyfile, mock_config):
+    def test_backup_voe(self, mock_os, mock_config, mock_open):
         def get_conf(arg):
             if arg == 'Backup':
                 bkp = {
                     'VOEvent Backup Dir': 'some/path',
-                    'Do Backup': True,
+                    'Backup VOEvent': True,
                     }
                 return bkp
             return None
-        fp = tempfile.NamedTemporaryFile("w+")
-        fp.write('Testing')
-        fp.seek(0)
         mock_os.path.exists.return_value = True
         mock_os.path.join.return_value = "some/path/file.xml"
-        torosgcn.listen.backup_voe(fp.name, self.info)
-        fp.close()
-        (input_file, output_file), cp_kwarg = mock_copyfile.call_args
-        self.assertTrue(mock_copyfile.called)
-        self.assertEqual(input_file, fp.name)
-        self.assertEqual(output_file, "some/path/file.xml")
+        torosgcn.listen.backup_voe(b"Testing", self.info)
+        (bkpfile_path, __), cp_kwarg = mock_open.call_args
+        self.assertTrue(mock_open.called)
+        self.assertEqual(bkpfile_path, "some/path/file.xml")
         self.assertTrue(loguru.logger.info.called)
 
         mock_os.path.exists.return_value = False
-        torosgcn.listen.backup_voe(fp.name, self.info)
+        torosgcn.listen.backup_voe(b"Testing", self.info)
         self.assertTrue(mock_os.makedirs.called)
 
 
