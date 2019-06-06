@@ -16,9 +16,14 @@ lvcgcnd.service: lvcgcnd.service.template torosgcn/listen.py
 $(conf_dir):
 	mkdir -p $@
 
-install: $(service_dir) $(conf_dir) lvcgcnd.service lvcgcn-conf.yaml
-	cp *.service $(service_dir)
-	cp lvcgcn-conf.yaml $(conf_dir)/lvcgcn-conf.yaml
+$(service_dir)/lvcgcnd.service:
+	cp lvcgcnd.service $(service_dir)
+
+$(conf_dir)/lvcgcn-conf.yaml:
+	cp lvcgcn-conf.yaml $(conf_dir)
+
+install: $(service_dir) $(conf_dir) lvcgcnd.service lvcgcn-conf.yaml $(service_dir)/lvcgcnd.service $(conf_dir)/lvcgcn-conf.yaml
+	@echo "Installation complete."
 
 uninstall:
 	-systemctl stop lvcgcnd
@@ -27,4 +32,4 @@ uninstall:
 	rm -r $(conf_dir)
 
 clean:
-	-rm *.service
+	-rm lvcgcnd.service
