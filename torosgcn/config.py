@@ -26,9 +26,10 @@ def get_config():
 def get_config_for_key(key):
     config = get_config()
     cval = config.get(key)
-    if cval is not None and key == 'Observatories':
+    if key == 'Observatories' and config.get('obs_fixed') is None:
         for obs in cval:
             obs['location'] = EarthLocation.from_geodetic(**obs['location'])
+        config['obs_fixed'] = True
     return cval
 
 def init_logger():
