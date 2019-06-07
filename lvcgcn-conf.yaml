@@ -68,7 +68,8 @@ Logging: {
 }
 
 Backup: {
-  Do Backup: true,
+  Backup VOEvent: true,
+  Backup Skymap: true,
   Skymap Backup Dir: /var/toros/skymaps,
   VOEvent Backup Dir: /var/toros/VOEvents
 }
