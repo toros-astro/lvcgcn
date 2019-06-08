@@ -1,4 +1,3 @@
-
 preliminary_voe = """<?xml version="1.0" ?>
 <voe:VOEvent xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 xmlns:voe="http://www.ivoa.net/xml/VOEvent/v2.0"
