@@ -12,6 +12,7 @@ The responder lvcgcnd is a daemon managed by the systemd service found in most L
    :caption: Contents:
 
    install
+   workflow
    config
    catalog
 
