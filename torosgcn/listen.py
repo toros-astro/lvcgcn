@@ -11,9 +11,9 @@ from loguru import logger
 
 def sendemail(msg_text, subject, recipients=None, attachments=[]):
     """Will send out email with the message text in msg_text (string), subject (string)
-    and a list of attachment file paths.
+    and a list of attachment tuples (bytes, filename).
     If recipients is not provided as a list of email addresses (None),
-    it will use email_alert_recipients from conf.py or the Admin Emails."""
+    it will get the list of recipients from the configuration file."""
     import smtplib
     from email.mime.application import MIMEApplication
     from email.mime.multipart import MIMEMultipart
@@ -64,6 +64,7 @@ def sendemail(msg_text, subject, recipients=None, attachments=[]):
 
 
 def sendalertemail(payload, info):
+    "Prepare and send the notification email of a new alert"
     pre_subject, pre_warning = "", ""
     if info.get("role") == "test":
         pre_subject = "[TEST: Mock Alert] "
@@ -117,6 +118,7 @@ or the GraceDB Event Page: {2}
 
 
 def getinfo(root):
+    "Parse VOEvent XML tree and create an info dictionary with relevant information"
     info = {}
     try:
         info["role"] = root.attrib["role"]
@@ -210,6 +212,7 @@ def getinfo(root):
 
 
 def retrieve_skymap(info):
+    "Fetch skymap FITS file from GraceDB service. Return skymap FITS as raw bytes"
     import requests
     import tempfile
 
@@ -221,17 +224,11 @@ def retrieve_skymap(info):
     fp.seek(0)
     skymap_data = fp.read()
     fp.close()
-
-    try:
-        bkp_config = config.get_config_for_key("Backup")
-        if bkp_config.get("Backup Skymap"):
-            backup_skymap(skymap_data, info)
-    except:
-        logger.exception("Skymap backup failed.")
     return skymap_data
 
 
 def upload_gcnnotice(info, targets=None):
+    "Upload the JSON file that contains information about GCN Notice to broker"
     import requests
 
     # Get Broker website config
@@ -270,7 +267,10 @@ def upload_gcnnotice(info, targets=None):
 
 
 def backup_skymap(skymap_data, info):
+    "Save to file the skymap FITS file asociated with this GCN Notice"
     bkp_config = config.get_config_for_key("Backup")
+    if not bkp_config.get("Backup Skymap"):
+        return
     skymap_bkpdir = bkp_config.get("Skymap Backup Dir")
     if not os.path.exists(skymap_bkpdir):
         os.makedirs(skymap_bkpdir)
@@ -286,6 +286,7 @@ def backup_skymap(skymap_data, info):
 
 
 def backup_voe(payload, info):
+    "Save to file the VOEvent XML"
     bkp_config = config.get_config_for_key("Backup")
     if not bkp_config.get("Backup VOEvent"):
         return
@@ -337,10 +338,15 @@ def process_gcn(payload, root):
     except:
         logger.exception("Error sending alert email.")
 
+    # Retrieve skymap and generate targets if necessary
     targets = None
     if info.get("skymap_url") is not None:
         try:
             skymap_data = retrieve_skymap(info)
+            try:
+                backup_skymap(skymap_data, info)
+            except:
+                logger.exception("Problem backing-up skymap")
             try:
                 targets = scheduler.generate_targets(skymap_data)
             except:
