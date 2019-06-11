@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from astropy.coordinates import EarthLocation as _earth
 import yaml as _yaml
+import logging as _logging
 
 CONFIG_PATH = "/etc/toros/lvcgcn-conf.yaml"
 _CONFIG_IS_LOADED = False
@@ -52,15 +53,14 @@ def init_logger():
     logger.info("LVC-GCN service started.")
     logger.info("Logger level set to {}".format(log_level))
 
-    import logging
-    from logging.handlers import SMTPHandler
-
     # Send emails for exceptions and errors
     email_conf = get_config_for_key("Email Configuration")
     if email_conf.get("Login Required"):
         credentials = (email_conf.get("Username"), email_conf.get("Password"))
     else:
         credentials = None
+    from logging.handlers import SMTPHandler
+
     emailHandler = SMTPHandler(
         mailhost=(email_conf.get("SMTP Domain"), email_conf.get("SMTP Port")),
         fromaddr=email_conf.get("Sender Address"),
@@ -71,9 +71,9 @@ def init_logger():
     logger.add(emailHandler, level="ERROR")
 
     # Intercept stdlib logging and redirect to loguru
-    class InterceptHandler(logging.Handler):
+    class InterceptHandler(_logging.Handler):
         def emit(self, record):
             logger_opt = logger.opt(depth=6, exception=record.exc_info)
             logger_opt.log(record.levelno, record.getMessage())
 
-    logging.basicConfig(handlers=[InterceptHandler()], level=logging.NOTSET)
+    _logging.basicConfig(handlers=[InterceptHandler()], level=_logging.NOTSET)

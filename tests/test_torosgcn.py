@@ -44,11 +44,24 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(second_val, "Param02")
         fp.close()
 
-    def test_init_logger(self):
+    @mock.patch("torosgcn.config._logging")
+    def test_init_logger(self, mock_logging):
         torosgcn.config._CONFIG_IS_LOADED = False
         fp = tempfile.NamedTemporaryFile("w+")
         torosgcn.config.CONFIG_PATH = fp.name
-        fp.write("Logging: {" "  File: logfilename," "  Log Level: INFO" "}")
+        mock_conf = """Logging: {
+  File: logfilename,
+  Log Level: INFO
+}
+Email Configuration: {
+  SMTP Domain: smtp.gmail.com,
+  SMTP Port: 587,
+  Sender Address: example@gmail.com,
+  Login Required: false,
+  Username: null,
+  Password: null
+}"""
+        fp.write(mock_conf)
         fp.seek(0)
         torosgcn.config.init_logger()
         self.assertTrue(loguru.logger.add.called)
@@ -193,23 +206,9 @@ class TestListen(unittest.TestCase):
         self.assertTrue("gcndatetime" in info_ret)
         self.assertTrue("datetime" in info_ret)
 
-    @mock.patch("builtins.open")
-    @mock.patch("requests.get")
     @mock.patch("requests.session")
-    @mock.patch("torosgcn.listen.sendemail")
     @mock.patch("torosgcn.listen.config.get_config_for_key")
-    @mock.patch("torosgcn.listen.scheduler.generate_targets")
-    def test_upload_gcnnotice(
-        self,
-        mock_gen_targets,
-        mock_get_conf,
-        mock_sendemail,
-        mock_session,
-        mock_get,
-        mock_open,
-    ):
-        mock_gen_targets.return_value = self.obs_trg
-
+    def test_upload_gcnnotice(self, mock_get_conf, mock_session):
         def get_conf(arg):
             if arg == "Broker Upload":
                 return {
@@ -220,16 +219,12 @@ class TestListen(unittest.TestCase):
                     "username": "admin",
                     "password": "yourpassword",
                 }
-            elif arg == "Admin Emails":
-                return ["admin@example.com"]
             else:
                 return None
 
         mock_get_conf.side_effect = get_conf
-        torosgcn.listen.upload_gcnnotice(self.info)
-        self.assertTrue(mock_sendemail.called)
+        torosgcn.listen.upload_gcnnotice(self.info, self.obs_trg)
         self.assertTrue(mock_session.called)
-        self.assertTrue(mock_get.called)
 
     @mock.patch("torosgcn.listen.upload_gcnnotice")
     @mock.patch("torosgcn.listen.sendalertemail")
@@ -427,7 +422,7 @@ class TestScheduler(unittest.TestCase):
             "alert_type": "Preliminary",
             "gcndatetime": "2019-04-22T00:00:00",
         }
-        json_str = torosgcn.scheduler.broker_json(self.obs_trg, info)
+        json_str = torosgcn.scheduler.broker_json(info, self.obs_trg)
         self.assertFalse(json_str is None)
         self.assertTrue(isinstance(json.loads(json_str), dict))
         self.assertTrue("S190422ab" in json_str)

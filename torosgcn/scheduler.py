@@ -32,7 +32,7 @@ def broker_uploadstring(observatories):
     return uploadstring
 
 
-def broker_json(observatories, info):
+def broker_json(info, observatories):
     import json
 
     setype = "S"
@@ -65,7 +65,7 @@ def broker_json(observatories, info):
     return json.dumps(data, indent=2)
 
 
-def generate_targets(skymap_path, detection_time=None):
+def generate_targets(skymap, detection_time=None):
     observatories = config.get_config_for_key("Observatories")
     catalog_path = config.get_config_for_key("Catalog Path")
     catfilters = config.get_config_for_key("Catalog Filters")
@@ -75,6 +75,22 @@ def generate_targets(skymap_path, detection_time=None):
     import healpy as hp
     from scipy.stats import norm
 
+    skymap_path = None
+    if isinstance(skymap, bytes):
+        from tempfile import NamedTemporaryFile
+
+        fp = NamedTemporaryFile()
+        skymap_path = fp.name
+        fp.write(skymap)
+        fp.seek(0)
+    elif isinstance(skymap, str):
+        skymap_path = skymap
+    else:
+        raise TypeError(
+            "{} for first argument should be 'bytes', or 'str' with file path.".format(
+                type(skymap)
+            )
+        )
     contains_dist_estimation = True
     try:
         aligo_banana, distmu, distsigma, distnorm = hp.read_map(
@@ -83,6 +99,7 @@ def generate_targets(skymap_path, detection_time=None):
     except:
         aligo_banana = hp.read_map(skymap_path, verbose=False)
         contains_dist_estimation = False
+
     npix = len(aligo_banana)
     nside = hp.npix2nside(npix)
 

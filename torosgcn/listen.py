@@ -65,13 +65,15 @@ def sendemail(msg_text, subject, recipients=None, attachments=[]):
 
 def sendalertemail(payload, info):
     pre_subject, pre_warning = "", ""
-    if info["role"] == "test":
+    if info.get("role") == "test":
         pre_subject = "[TEST: Mock Alert] "
         pre_warning = "WARNING: The following is a Mock Alert.\n"
-    if info["role"] == "drill":
+    if info.get("role") == "drill":
         pre_subject = "[DRILL: Mock Alert] "
         pre_warning = "WARNING: The following is a Drill.\n"
-    subject = "{}{} GCN for {}".format(pre_subject, info["alert_type"], info["graceid"])
+    subject = "{}{} GCN for {}".format(
+        pre_subject, info.get("alert_type"), info.get("graceid")
+    )
     msg_text = """{}VOEvent from the LV-EM GCN system.
 
 Alert info:
@@ -87,81 +89,31 @@ BBH: {}
 NS Probability: {}
 Remnants Probability: {}""".format(
         pre_warning,
-        info["graceid"],
-        info["graceid"],
-        info["eventpage"],
-        info["skymap_url"],
-        info["bnsprob"],
-        info["nsbhprob"],
-        info["bbhprob"],
-        info["nsprob"],
-        info["remnprob"],
+        info.get("graceid"),
+        info.get("graceid"),
+        info.get("eventpage"),
+        info.get("skymap_url"),
+        info.get("bnsprob"),
+        info.get("nsbhprob"),
+        info.get("bbhprob"),
+        info.get("nsprob"),
+        info.get("remnprob"),
     )
 
-    if info["alert_type"] == "Retraction":
+    if info.get("alert_type") == "Retraction":
         msg_text = """{0}VOEvent from the LV-EM GCN system.
 
 This is a RETRACTION for SuperEvent with GraceID: {1}
 For more info visit the TOROS Broker Page: https://toros.utrgv.edu/broker/alert/{1}
 or the GraceDB Event Page: {2}
 """.format(
-            pre_warning, info["graceid"], info["eventpage"]
+            pre_warning, info.get("graceid"), info.get("eventpage")
         )
     ADMIN_EMAILS = config.get_config_for_key("Admin Emails")
-    recipients = ADMIN_EMAILS if info["role"] == "test" else None
+    recipients = ADMIN_EMAILS if info.get("role") == "test" else None
     sendemail(
         msg_text, subject, recipients=recipients, attachments=[(payload, "VOEvent.xml")]
     )
-
-
-def send_upload_confirmation_email(obs, info, error_message=None):
-    if obs is not None:
-        broker_uploadstring = (
-            "Broker upload-string to manually " "upload targets:\n\n{}"
-        ).format(scheduler.broker_uploadstring(obs))
-    else:
-        broker_uploadstring = "There were no targets to upload."
-
-    pre_subject, pre_warning = "", ""
-    if info["role"] == "test":
-        pre_subject = "[TEST: Mock Alert] "
-        pre_warning = "WARNING: The following is a Mock Alert.\n"
-    elif info["role"] == "drill":
-        pre_subject = "[DRILL: Mock Alert] "
-        pre_warning = "WARNING: The following is a Drill.\n"
-
-    if error_message is None:
-        msg_text = (
-            "{0}\n\n{1} GCN for LVC super event {2} "
-            "was successfully uploaded to broker.\n"
-            "For more info, check the broker alert page: https://toros.utrgv.edu/broker/alert/{2}\n"
-            "and the LVC event page: {3}\n\n{4}"
-        ).format(
-            pre_warning,
-            info.get("alert_type"),
-            info.get("graceid"),
-            info.get("eventpage"),
-            broker_uploadstring,
-        )
-    else:
-        msg_text = (
-            "{0}\n\nError uploading {1} GCN for LVC super event {2}.\n"
-            "For more info, check the broker alert page: https://toros.utrgv.edu/broker/alert/{2}\n"
-            "and the LVC event page: {3}\n\n{4}\n"
-            "Error Trace:\n{5}\n"
-        ).format(
-            pre_warning,
-            info.get("alert_type"),
-            info.get("graceid"),
-            info.get("eventpage"),
-            broker_uploadstring,
-            error_message,
-        )
-    email_subject = "{}{} GCN for {}".format(
-        pre_subject, info.get("alert_type"), info.get("graceid")
-    )
-    ADMIN_EMAILS = config.get_config_for_key("Admin Emails")
-    sendemail(msg_text, email_subject, recipients=ADMIN_EMAILS)
 
 
 def getinfo(root):
@@ -279,32 +231,8 @@ def retrieve_skymap(info):
     return skymap_data
 
 
-def upload_gcnnotice(info):
-    error_msg = None
-    if info.get("skymap_url") is not None:
-        try:
-            skymap_data = retrieve_skymap(info)
-            try:
-                import tempfile
-
-                with tempfile.NamedTemporaryFile("wb") as fp:
-                    fp.write(skymap_data)
-                    fp.seek(0)
-                    obs = scheduler.generate_targets(fp.name)
-            except Exception as e:
-                logger.exception("Error generating targets")
-                obs = None
-                error_msg = str(e)
-        except Exception as e:
-            logger.exception(
-                "Error downloading FITS skymap for Grace ID: {} from URL: {}".format(
-                    info.get("graceid"), info.get("skymap_url")
-                )
-            )
-            obs = None
-            error_msg = str(e)
-    else:
-        obs = None
+def upload_gcnnotice(info, targets=None):
+    import requests
 
     # Get Broker website config
     broker_conf = config.get_config_for_key("Broker Upload")
@@ -314,39 +242,31 @@ def upload_gcnnotice(info):
     url_logout = broker_conf.get("logout url")
     broker_user_name = broker_conf.get("username")
     broker_user_password = broker_conf.get("password")
-    try:
-        import requests
 
-        # Log into a session with our user
-        client = requests.session()
-        client.get(url_login)
-        csrftoken = client.cookies["csrftoken"]
-        login_data = {
-            "username": broker_user_name,
-            "password": broker_user_password,
-            "csrfmiddlewaretoken": csrftoken,
-        }
-        r1 = client.post(url_login, data=login_data, headers={"Referer": url_login})
+    # Log into a session with our user
+    client = requests.session()
+    client.get(url_login)
+    csrftoken = client.cookies["csrftoken"]
+    login_data = {
+        "username": broker_user_name,
+        "password": broker_user_password,
+        "csrfmiddlewaretoken": csrftoken,
+    }
+    r1 = client.post(url_login, data=login_data, headers={"Referer": url_login})
 
-        # Upload targets in json format
-        targetsjson = scheduler.broker_json(obs, info)
-        sessionid = client.cookies["sessionid"]
-        loadjson_data = {
-            "targets.json": targetsjson,
-            "csrfmiddlewaretoken": csrftoken,
-            "sessionid": sessionid,
-        }
-        r2 = client.post(url_uploadjson, data=loadjson_data)
+    # Upload targets in json format
+    targetsjson = scheduler.broker_json(info, targets)
+    sessionid = client.cookies["sessionid"]
+    loadjson_data = {
+        "targets.json": targetsjson,
+        "csrfmiddlewaretoken": csrftoken,
+        "sessionid": sessionid,
+    }
+    r2 = client.post(url_uploadjson, data=loadjson_data)
 
-        # Log out
-        r3 = client.get(url_logout, data={"sessionid": sessionid})
-
-    except Exception as e:
-        logger.exception("Could not upload target list using HTTP post method.")
-        logger.debug(targetsjson)
-        error_msg = str(e)
-
-    send_upload_confirmation_email(obs, info, error_message=error_msg)
+    # Log out
+    r3 = client.get(url_logout, data={"sessionid": sessionid})
+    logger.debug("Target JSON sent to broker:\n{}".format(targetsjson))
 
 
 def backup_skymap(skymap_data, info):
@@ -416,11 +336,26 @@ def process_gcn(payload, root):
         sendalertemail(payload, info)
     except:
         logger.exception("Error sending alert email.")
-    # Create and upload targets
+
+    targets = None
+    if info.get("skymap_url") is not None:
+        try:
+            skymap_data = retrieve_skymap(info)
+            try:
+                targets = scheduler.generate_targets(skymap_data)
+            except:
+                logger.exception("Error generating targets")
+        except:
+            logger.exception(
+                "Error downloading FITS skymap for Grace ID: {} from URL: {}".format(
+                    info.get("graceid"), info.get("skymap_url")
+                )
+            )
+    # Upload targets to broker site
     try:
-        upload_gcnnotice(info)
+        upload_gcnnotice(info, targets)
     except:
-        logger.exception("Error uploading targets.")
+        logger.exception("Error uploading targets to broker.")
 
 
 def main():
