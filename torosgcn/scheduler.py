@@ -11,16 +11,17 @@ from . import config
 
 
 def alpha_cuts(observation_time, horizon=-15 * u.degree, min_height=30 * u.degree):
+    "Helper function to calculate alpha limits to visibility away from the sun"
     sun = astropy.coordinates.get_sun(observation_time)
     horiz = horizon.to(u.degree)
     h = min_height.to(u.degree)
     lowest_alpha = (sun.ra - horiz + h).to(u.hourangle).value
     highest_alpha = (sun.ra + horiz - h).to(u.hourangle).value
-
     return lowest_alpha, highest_alpha
 
 
 def broker_uploadstring(observatories):
+    "OBSOLETE: Manual upload of targets in case json upload fails"
     obs_uploadstring = []
     for obs in observatories:
         t_strings = [
@@ -33,6 +34,7 @@ def broker_uploadstring(observatories):
 
 
 def broker_json(info, observatories):
+    "Generate JSON file to upload targets and GCN Notice information"
     import json
 
     setype = "S"
@@ -66,6 +68,8 @@ def broker_json(info, observatories):
 
 
 def generate_targets(skymap, detection_time=None):
+    """Generate targets of observation visible at detection_time for each
+    observatory in the configuration file"""
     observatories = config.get_config_for_key("Observatories")
     catalog_path = config.get_config_for_key("Catalog Path")
     catfilters = config.get_config_for_key("Catalog Filters")

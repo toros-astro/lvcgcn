@@ -9,12 +9,12 @@ To install the lvcgcnd systemd service type in a terminal::
     $ make
     $ sudo make install
 
-The first command will install the Python package torosgcn and a script lvcgcn.
-It will also create a lvcgcnd.service file to create the main systemctl daemon lvcgcnd.
+The first command will install the Python package ``torosgcn`` and a script ``lvcgcn``.
+It will also create a ``lvcgcnd.service`` file to create the systemctl daemon ``lvcgcnd``.
 
 The second command needs root permissions.
-It will copy the lvcgcnd.service file to /etc/systemd/system and it will also
-copy an example lvcgcn-conf.yaml file to /etc/toros (see section :ref:`conf`). 
+It will copy the ``lvcgcnd.service`` file to ``/etc/systemd/system`` and it will also
+copy a sample ``lvcgcn-conf.yaml`` file to ``/etc/toros`` (see section :ref:`conf`). 
 
 It is highly recommended (but not necessary) that you use a virtual environment
 when installing.
@@ -22,11 +22,12 @@ when installing.
 Usage
 -----
 
-Usage of the lvcgcnd daemon follow all of the rules for systemd services.
+Usage of the ``lvcgcnd`` daemon follow all of the rules for ``systemd`` services.
 
-For a full documentation of the systemd service, please refer to ..
+For a full documentation of the systemd service, please refer to the `official documentation <https://www.freedesktop.org/wiki/Software/systemd/>`_.
 
-The main most common commands are:
+Most common commands
+^^^^^^^^^^^^^^^^^^^^
 
 To start running the daemon::
 
@@ -40,8 +41,8 @@ To stop it::
 
     $ systemctl stop lvcgcnd
 
-If you want to check if lvcgcnd whether is active and running or not::
+If you want to check if ``lvcgcnd`` whether is active and running or not::
 
     $ systemctl status lvcgcnd
 
-All the previous commands may require root privilege to execute.
+All the previous commands may require ``root`` privilege to execute.

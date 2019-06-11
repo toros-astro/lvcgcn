@@ -5,10 +5,10 @@ Configuration
 
 Lvcgcn makes use of a configuration file installed in /etc/toros/lvcgcn-conf.yaml
 
-It uses the YAML mark-up language.
+It uses the `YAML`_ mark-up language.
 
 .. note::
-    During installation, a sample lvcgcn-conf.yaml is installed to help
+    During installation, a sample ``lvcgcn-conf.yaml`` is installed to help
     with configuration.
 
 Keyword Description
@@ -77,3 +77,5 @@ for different observatories. An example is given below.
 (``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL``) to be set for logging.
 
 ``Backup``: Whether to backup VOEvents and skymap files.
+
+.. _YAML: https://yaml.org
