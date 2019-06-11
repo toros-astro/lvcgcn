@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
-from astropy.coordinates import EarthLocation
-from astropy import units as u
+from astropy.coordinates import EarthLocation as _earth
 import yaml as _yaml
 
 CONFIG_PATH = "/etc/toros/lvcgcn-conf.yaml"
 _CONFIG_IS_LOADED = False
 _config = {}
-
-obs = None
 
 
 def load_config():
@@ -31,7 +28,7 @@ def get_config_for_key(key):
     cval = config.get(key)
     if key == "Observatories" and config.get("obs_fixed") is None:
         for obs in cval:
-            obs["location"] = EarthLocation.from_geodetic(**obs["location"])
+            obs["location"] = _earth.from_geodetic(**obs["location"])
         config["obs_fixed"] = True
     return cval
 
@@ -55,18 +52,28 @@ def init_logger():
     logger.info("LVC-GCN service started.")
     logger.info("Logger level set to {}".format(log_level))
 
-    # Intercept stdlib logging and redirect to loguru
     import logging
+    from logging.handlers import SMTPHandler
 
+    # Send emails for exceptions and errors
+    email_conf = get_config_for_key("Email Configuration")
+    if email_conf.get("Login Required"):
+        credentials = (email_conf.get("Username"), email_conf.get("Password"))
+    else:
+        credentials = None
+    emailHandler = SMTPHandler(
+        mailhost=(email_conf.get("SMTP Domain"), email_conf.get("SMTP Port")),
+        fromaddr=email_conf.get("Sender Address"),
+        toaddrs=get_config_for_key("Admin Emails"),
+        subject="[ERROR] lvcgcnd failure",
+        credentials=credentials,
+    )
+    logger.add(emailHandler, level="ERROR")
+
+    # Intercept stdlib logging and redirect to loguru
     class InterceptHandler(logging.Handler):
         def emit(self, record):
             logger_opt = logger.opt(depth=6, exception=record.exc_info)
             logger_opt.log(record.levelno, record.getMessage())
 
     logging.basicConfig(handlers=[InterceptHandler()], level=logging.NOTSET)
-
-
-import os
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-catalog_path = os.path.join(BASE_DIR, "aux_files", "GWGCCatalog.txt")

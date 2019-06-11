@@ -39,7 +39,8 @@ DEBUG_TEST: false
 # Sender email configuration
 Email Configuration: {
   # Gmail account example
-  SMTP Domain: smtp.gmail.com:587,
+  SMTP Domain: smtp.gmail.com,
+  SMTP Port: 587,
   Sender Address: example@gmail.com,
   Login Required: true,
   Username: yourUserName,  # null if not needed
