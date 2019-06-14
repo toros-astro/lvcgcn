@@ -23,6 +23,7 @@ $(conf_dir)/lvcgcn-conf.yaml:
 	cp lvcgcn-conf.yaml $(conf_dir)
 
 install: $(service_dir) $(conf_dir) lvcgcnd.service lvcgcn-conf.yaml $(service_dir)/lvcgcnd.service $(conf_dir)/lvcgcn-conf.yaml
+	systemctl enable lvcgcnd
 	@echo "Installation complete."
 
 uninstall:
