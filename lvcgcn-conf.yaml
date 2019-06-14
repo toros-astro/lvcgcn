@@ -1,6 +1,6 @@
 LIGO Run: O3
 
-Catalog Path: /path/to/catalog/file.csv ## Add this as a resource in the package
+Catalog Path: /etc/lvcgcn/GLADE_2.3.csv
 
 # Parameters to filter galaxy selection criteria
 Catalog Filters: {
@@ -38,7 +38,6 @@ DEBUG_TEST: false
 
 # Sender email configuration
 Email Configuration: {
-  # Gmail account example
   SMTP Domain: smtp.gmail.com,
   SMTP Port: 587,
   Sender Address: example@gmail.com,
@@ -48,29 +47,29 @@ Email Configuration: {
 }
 
 Admin Emails:
-- torosadmin@utrgv.edu
+- admin@example.edu
 
 Alert Recipients:
 - person01@example.com
 - person02@example.com
 
 Broker Upload: {
-  site url: https://toros.utrgv.edu/,
-  login url: https://toros.utrgv.edu/account/login/,
-  uploadjson url: https://toros.utrgv.edu/broker/uploadjson/,
-  logout url: https://toros.utrgv.edu/account/logout/,
+  site url: https://example.edu/,
+  login url: https://example.edu/account/login/,
+  uploadjson url: https://example.edu/broker/api/gcnnotice/,
+  logout url: https://example.edu/account/logout/,
   username: admin,
   password: Adm1nPa$$word
 }
 
 Logging: {
-  File: /etc/toros/lvcgcnd.log,
+  File: /var/lvcgcn/log/lvcgcnd.log,
   Log Level: INFO
 }
 
 Backup: {
   Backup VOEvent: true,
   Backup Skymap: true,
-  Skymap Backup Dir: /var/toros/skymaps,
-  VOEvent Backup Dir: /var/toros/VOEvents
+  Skymap Backup Dir: /var/lvcgcn/skymaps,
+  VOEvent Backup Dir: /var/lvcgcn/VOEvents
 }

@@ -3,7 +3,7 @@ from astropy.coordinates import EarthLocation as _earth
 import yaml as _yaml
 import logging as _logging
 
-CONFIG_PATH = "/etc/toros/lvcgcn-conf.yaml"
+CONFIG_PATH = "/etc/lvcgcn/lvcgcn-conf.yaml"
 _CONFIG_IS_LOADED = False
 _config = {}
 
