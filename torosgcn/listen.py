@@ -25,8 +25,8 @@ def sendemail(msg_text, subject, recipients=None, attachments=[]):
 
     email_conf = config.get_config_for_key("Email Configuration")
     if recipients is None:
-        recipients = email_conf.get("Alert Recipients")
-        if recipients is None:
+        recipients = config.get_config_for_key("Alert Recipients")
+        if not recipients:
             logger.warning("No email recipients found. Using admin's.")
             recipients = config.get_config_for_key("Admin Emails")
             msg_text = "WARNING: This email was only sent to Admin's email. "
