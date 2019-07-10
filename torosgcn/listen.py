@@ -133,6 +133,10 @@ def getinfo(root):
         logger.error("Could not find tag `GraceID` in XML.")
         info["graceid"] = None
 
+    tag_gcnserial = root.find("./What//Param[@name='Pkt_Ser_Num']")
+    if tag_gcnserial is not None:
+        info["gcnserial"] = tag_gcnserial.attrib["value"]
+
     tag_type = root.find("./What//Param[@name='Packet_Type']")
     number_to_type = {
         "150": "Preliminary",
