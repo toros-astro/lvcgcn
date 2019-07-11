@@ -53,6 +53,8 @@ Alert Recipients:
 - person01@example.com
 - person02@example.com
 
+Slack Webhook: https://example./
+
 Broker Upload: {
   site url: https://example.edu/,
   login url: https://example.edu/account/login/,
