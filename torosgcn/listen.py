@@ -7,7 +7,12 @@ import os
 from . import config
 from . import scheduler
 from loguru import logger
+import requests
 
+def sendslack(msg_text):
+    slack = config.get_config_for_key("Slack Webhook")
+    sending = '{"text": "'+msg_txt+'"}'
+    requests.post(data=sending, url="Slack Webhook")
 
 def sendemail(msg_text, subject, recipients=None, attachments=[]):
     """Will send out email with the message text in msg_text (string), subject (string)
@@ -117,6 +122,7 @@ or the GraceDB Event Page: {2}
     )
 
 
+    
 def getinfo(root):
     "Parse VOEvent XML tree and create an info dictionary with relevant information"
     info = {}
@@ -341,7 +347,13 @@ def process_gcn(payload, root):
         sendalertemail(payload, info)
     except:
         logger.exception("Error sending alert email.")
-
+        
+    # Send Alert by Slack
+    try:
+        sendslack(msg_txt)
+    except:
+        logger.exception("Error sending slack message.")
+        
     # Retrieve skymap and generate targets if necessary
     targets = None
     if info.get("skymap_url") is not None:
