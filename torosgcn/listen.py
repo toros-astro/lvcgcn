@@ -7,12 +7,35 @@ import os
 from . import config
 from . import scheduler
 from loguru import logger
-import requests
 
-def sendslack(msg_text):
-    slack = config.get_config_for_key("Slack Webhook")
-    sending = '{"text": "'+msg_txt+'"}'
-    requests.post(data=sending, url="Slack Webhook")
+
+def sendslack(info):
+    import requests
+
+    if info.get("role") == "test":
+        return
+    webhook = config.get_config_for_key("Slack Webhook")
+    if webhook is None:
+        logger.info("No Slack webhook found.")
+        return
+    alert_type = info.get("alert_type")
+    if alert_type == "Preliminary":
+        probs = {}
+        for probkey, obj in zip(
+            ["bnsprob", "nsbhprob", "bbhprob"], ["BNS", "NS-BH", "BBH"]
+        ):
+            probs[obj] = info.get(probkey)
+        obj, prob = max(probs.items(), key=(lambda x: x[1]))
+        msg_text = ("New Event: {}.\nObject is most likely a {} ({:.2f}%).").format(
+            info.get("graceid"), obj, float(prob) * 100
+        )
+    elif alert_type == "Retraction":
+        msg_text = "Event {} was retracted.".format(info.get("graceid"))
+    else:
+        return
+    msg_json = '{{text: "{}"}}'.format(msg_text)
+    requests.post(data=msg_json, url=webhook)
+
 
 def sendemail(msg_text, subject, recipients=None, attachments=[]):
     """Will send out email with the message text in msg_text (string), subject (string)
@@ -122,7 +145,6 @@ or the GraceDB Event Page: {2}
     )
 
 
-    
 def getinfo(root):
     "Parse VOEvent XML tree and create an info dictionary with relevant information"
     info = {}
@@ -347,13 +369,14 @@ def process_gcn(payload, root):
         sendalertemail(payload, info)
     except:
         logger.exception("Error sending alert email.")
-        
-    # Send Alert by Slack
+
+    # Send Alert to Slack
     try:
-        sendslack(msg_txt)
+        sendslack(info)
+        logger.info("Alert message sent to Slack.")
     except:
-        logger.exception("Error sending slack message.")
-        
+        logger.exception("Error sending Slack message.")
+
     # Retrieve skymap and generate targets if necessary
     targets = None
     if info.get("skymap_url") is not None:

@@ -53,7 +53,7 @@ Alert Recipients:
 - person01@example.com
 - person02@example.com
 
-Slack Webhook: https://example./
+Slack Webhook: https://hooks.slack.com/services/YOUR/ULTRASECRET/SLACKWEBHOOK
 
 Broker Upload: {
   site url: https://example.edu/,

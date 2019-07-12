@@ -13,16 +13,21 @@ smtplib.SMTP = mock.Mock()
 class TestConfig(unittest.TestCase):
     @mock.patch("torosgcn.config._yaml")
     def test_load_config(self, mock_yaml):
+        "Test that config.load_config loads the file with the correct text"
         torosgcn.config._CONFIG_IS_LOADED = False
         fp = tempfile.NamedTemporaryFile("w+")
         torosgcn.config.CONFIG_PATH = fp.name
-        fp.write("Test")
+        test_text = "Test"
+        fp.write(test_text)
         fp.seek(0)
         torosgcn.config.load_config()
         self.assertTrue(mock_yaml.full_load.called)
+        (text,), kwargs = mock_yaml.full_load.call_args
+        self.assertEqual(text, test_text)
         fp.close()
 
     def test_get_config(self):
+        "Test that config.get_config returns the correct dictionary"
         torosgcn.config._CONFIG_IS_LOADED = False
         fp = tempfile.NamedTemporaryFile("w+")
         torosgcn.config.CONFIG_PATH = fp.name
@@ -33,6 +38,7 @@ class TestConfig(unittest.TestCase):
         fp.close()
 
     def test_get_config_for_key(self):
+        "Test config.get_config_for_key"
         torosgcn.config._CONFIG_IS_LOADED = False
         fp = tempfile.NamedTemporaryFile("w+")
         torosgcn.config.CONFIG_PATH = fp.name
@@ -226,15 +232,89 @@ class TestListen(unittest.TestCase):
         torosgcn.listen.upload_gcnnotice(self.info, self.obs_trg)
         self.assertTrue(mock_session.called)
 
+    @mock.patch("torosgcn.listen.config.get_config_for_key")
+    @mock.patch("requests.post")
+    def test_slack(self, mock_post, mock_config):
+        def slackwebhook(arg):
+            if arg == "Slack Webhook":
+                return "https://slack.com/STRING"
+            return None
+
+        mock_config.side_effect = slackwebhook
+        info = self.info.copy()
+        info["alert_type"] = "Preliminary"
+        torosgcn.listen.sendslack(info)
+        self.assertTrue(mock_config.called)
+        self.assertTrue(mock_post.called)
+        args, kw_args = mock_post.call_args
+        self.assertTrue("BNS" in kw_args["data"])
+        self.assertTrue("D190422ab" in kw_args["data"])
+        self.assertTrue("https://slack.com/STRING" in kw_args["url"])
+
+        # Test that nothing is sent with Updates or Initial
+        for altype in ["Initial", "Update"]:
+            info["alert_type"] = altype
+            mock_post.reset_mock()
+            mock_config.reset_mock()
+            torosgcn.listen.sendslack(info)
+            self.assertTrue(mock_config.called)
+            self.assertFalse(mock_post.called)
+
+        # Test that retractions are sent
+        info["alert_type"] = "Retraction"
+        torosgcn.listen.sendslack(info)
+        self.assertTrue(mock_config.called)
+        self.assertTrue(mock_post.called)
+        args, kw_args = mock_post.call_args
+        self.assertFalse("BNS" in kw_args["data"])
+        self.assertTrue("D190422ab" in kw_args["data"])
+        self.assertTrue("https://slack.com/STRING" in kw_args["url"])
+
+    @mock.patch("torosgcn.listen.sendslack")
     @mock.patch("torosgcn.listen.upload_gcnnotice")
     @mock.patch("torosgcn.listen.sendalertemail")
+    @mock.patch("torosgcn.listen.retrieve_skymap")
+    @mock.patch("torosgcn.scheduler.generate_targets")
+    @mock.patch("torosgcn.listen.backup_skymap")
     @mock.patch("torosgcn.listen.backup_voe")
     @mock.patch("torosgcn.listen.getinfo")
-    @mock.patch("builtins.open")
     @mock.patch("torosgcn.listen.config.get_config_for_key")
     def test_process_gcn(
-        self, mock_config, mock_open, mock_info, mock_backup, mock_email, mock_upload
+        self,
+        mock_config,
+        mock_info,
+        mock_backup_voe,
+        mock_backup_map,
+        mock_targets,
+        mock_retrieve,
+        mock_email,
+        mock_upload,
+        mock_slack,
     ):
+
+        all_mocks = [
+            mock_config,
+            mock_info,
+            mock_backup_voe,
+            mock_email,
+            mock_upload,
+            mock_slack,
+        ]
+
+        def assert_mocks_called(*mocks, truth=True):
+            "Helper function to assert that all mocks were called"
+            if truth:
+                for amock in mocks:
+                    self.assertTrue(amock.called)
+            else:
+                for amock in mocks:
+                    self.assertFalse(amock.called)
+
+        def reset_mocks(*mocks):
+            "Helper function to reset all mocks"
+            for amock in mocks:
+                amock.reset_mock()
+
         def get_conf(arg):
             if arg == "DEBUG_TEST":
                 return True
@@ -242,100 +322,94 @@ class TestListen(unittest.TestCase):
 
         mock_config.side_effect = get_conf
         mock_info.return_value = self.info
+
         from . import sample_data
         from lxml.etree import fromstring
 
         root = fromstring(sample_data.preliminary_voe)
         payload = bytes(sample_data.preliminary_voe, encoding="utf8")
         torosgcn.listen.process_gcn(payload, root)
-        self.assertTrue(mock_config.called)
-        self.assertTrue(mock_info.called)
-        self.assertTrue(mock_backup.called)
-        self.assertTrue(mock_email.called)
-        self.assertTrue(mock_upload.called)
+        assert_mocks_called(mock_backup_map, mock_targets, mock_retrieve, *all_mocks)
+        reset_mocks(mock_backup_map, mock_targets, mock_retrieve, *all_mocks)
 
         mock_info.side_effect = ValueError
         torosgcn.listen.process_gcn(payload, root)
-        self.assertTrue(mock_config.called)
-        self.assertTrue(mock_info.called)
-        self.assertTrue(mock_backup.called)
-        self.assertTrue(mock_email.called)
-        self.assertTrue(mock_upload.called)
-        self.assertTrue(loguru.logger.exception.called)
+        assert_mocks_called(loguru.logger.exception, *all_mocks)
+        reset_mocks(*all_mocks)
         mock_info.side_effect = None
 
-        def get_conf_debug(arg):
+        ### Test now when not test debugging ###
+        def get_conf_prod(arg):
             if arg == "DEBUG_TEST":
                 return False
             return None
 
+        # A test GCN arrives and debug is set to False.
+        # It should log that it got a test and return
         info_test = self.info.copy()
         info_test["role"] = "test"
         mock_info.return_value = info_test
-        mock_config.side_effect = get_conf_debug
-        mock_config.reset_mock()
-        mock_info.reset_mock()
-        mock_backup.reset_mock()
-        mock_email.reset_mock()
-        mock_upload.reset_mock()
-        loguru.logger.reset_mock()
+        mock_config.side_effect = get_conf_prod
         torosgcn.listen.process_gcn(payload, root)
-        self.assertTrue(mock_config.called)
-        self.assertTrue(mock_info.called)
-        self.assertFalse(mock_backup.called)
-        self.assertFalse(mock_email.called)
-        self.assertFalse(mock_upload.called)
-        self.assertTrue(loguru.logger.debug.called)
-        mock_info.side_effect = None
+        assert_mocks_called(mock_config, mock_info, loguru.logger.debug)
+        assert_mocks_called(
+            mock_backup_voe, mock_email, mock_upload, mock_slack, truth=False
+        )
+        reset_mocks(*all_mocks, loguru.logger.debug)
 
+        # The next tests will be for Observation GCN type
         mock_info.return_value = self.info
-        mock_backup.side_effect = ValueError
-        mock_config.reset_mock()
-        mock_info.reset_mock()
-        mock_backup.reset_mock()
-        mock_email.reset_mock()
-        mock_upload.reset_mock()
-        loguru.logger.reset_mock()
-        torosgcn.listen.process_gcn(payload, root)
-        self.assertTrue(mock_config.called)
-        self.assertTrue(mock_info.called)
-        self.assertTrue(mock_backup.called)
-        self.assertTrue(mock_email.called)
-        self.assertTrue(mock_upload.called)
-        self.assertTrue(loguru.logger.exception.called)
-        mock_backup.side_effect = None
 
-        mock_email.side_effect = ValueError
-        mock_config.reset_mock()
-        mock_info.reset_mock()
-        mock_backup.reset_mock()
-        mock_email.reset_mock()
-        mock_upload.reset_mock()
-        loguru.logger.reset_mock()
+        # Test when backup_voe throws error
+        # It should log it and continue as usual
+        mock_backup_voe.side_effect = ValueError
         torosgcn.listen.process_gcn(payload, root)
-        self.assertTrue(mock_config.called)
-        self.assertTrue(mock_info.called)
-        self.assertTrue(mock_backup.called)
-        self.assertTrue(mock_email.called)
-        self.assertTrue(mock_upload.called)
-        self.assertTrue(loguru.logger.exception.called)
+        assert_mocks_called(loguru.logger.exception, *all_mocks)
+        reset_mocks(loguru.logger.exception, *all_mocks)
+        mock_backup_voe.side_effect = None
+
+        # Test when backup_map throws error
+        # It should log it and continue as usual
+        mock_backup_map.side_effect = ValueError
+        torosgcn.listen.process_gcn(payload, root)
+        assert_mocks_called(loguru.logger.exception, *all_mocks)
+        reset_mocks(loguru.logger.exception, *all_mocks)
+        mock_backup_map.side_effect = None
+
+        # Test when sendemail throws an exception
+        # It should log it and continue as usual
+        mock_email.side_effect = ValueError
+        torosgcn.listen.process_gcn(payload, root)
+        assert_mocks_called(loguru.logger.exception, *all_mocks)
+        reset_mocks(loguru.logger.exception, *all_mocks)
         mock_email.side_effect = None
 
-        mock_upload.side_effect = ValueError
-        mock_config.reset_mock()
-        mock_info.reset_mock()
-        mock_backup.reset_mock()
-        mock_email.reset_mock()
-        mock_upload.reset_mock()
-        loguru.logger.reset_mock()
+        # Test when retrieve_skymap throws an exception
+        # It should log it and continue as usual
+        mock_retrieve.side_effect = ValueError
+        reset_mocks(mock_backup_map, mock_targets)
         torosgcn.listen.process_gcn(payload, root)
-        self.assertTrue(mock_config.called)
-        self.assertTrue(mock_info.called)
-        self.assertTrue(mock_backup.called)
-        self.assertTrue(mock_email.called)
-        self.assertTrue(mock_upload.called)
-        self.assertTrue(loguru.logger.exception.called)
+        assert_mocks_called(loguru.logger.exception, *all_mocks)
+        assert_mocks_called(mock_backup_map, mock_targets, truth=False)
+        reset_mocks(loguru.logger, *all_mocks)
+        mock_retrieve.side_effect = None
+
+        # Test when upload_gcnnotice throws an error
+        # It should log it and continue as usual
+        mock_upload.side_effect = ValueError
+        reset_mocks(loguru.logger, *all_mocks)
+        torosgcn.listen.process_gcn(payload, root)
+        assert_mocks_called(loguru.logger.exception, *all_mocks)
+        reset_mocks(loguru.logger.exception, *all_mocks)
         mock_upload.side_effect = None
+
+        # Test when upload_gcnnotice throws an error
+        # It should log it and continue as usual
+        mock_slack.side_effect = ValueError
+        torosgcn.listen.process_gcn(payload, root)
+        assert_mocks_called(loguru.logger.exception, *all_mocks)
+        reset_mocks(loguru.logger.exception, *all_mocks)
+        mock_slack.side_effect = None
 
     @mock.patch("builtins.open")
     @mock.patch("torosgcn.listen.config.get_config_for_key")
