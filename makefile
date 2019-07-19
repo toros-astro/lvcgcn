@@ -6,7 +6,7 @@ service_dir=/etc/systemd/system
 conf_dir=/etc/lvcgcn
 awk_script='BEGIN {FS="="; OFS="="}{if ($$1=="ExecStart") {$$2=exec_path} if (substr($$1,1,1) != "\#") {print $$0}}'
 
-listen: $(wildcard *.py)
+listen: setup.py torosgcn/*.py
 	pip install .
 
 lvcgcnd.service: lvcgcnd.service.template torosgcn/listen.py

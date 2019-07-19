@@ -78,14 +78,20 @@ class TestListen(unittest.TestCase):
         self.info = {
             "role": "drill",
             "graceid": "D190422ab",
-            "alert_type": "Initial",
+            "alerttype": "Initial",
             "eventpage": "http://someurl.com/view",
-            "skymap_url": "http://download/skymap",
-            "bnsprob": 0.7,
-            "nsbhprob": 0.1,
-            "bbhprob": 0.0,
-            "nsprob": 0.5,
-            "remnprob": 0.99,
+            "skymap_fits": "http://download/skymap",
+            "sourceprobs": {
+                "BNS": 0.7,
+                "NSBH": 0.1,
+                "BBH": 0.05,
+                "MassGap": 0.02,
+                "Terrestrial": 0.0,
+                },
+            "nsprobs": {
+                "HasNS": 0.5,
+                "HasRemnant": 0.99,
+                },
             "gcndatetime": "2019-04-22T00:00:00",
             "datetime": "2019-04-22T03:12:23",
         }
@@ -184,14 +190,20 @@ class TestListen(unittest.TestCase):
             self.assertTrue(isinstance(info_ret, dict))
             self.assertEqual(info_ret.get("role"), "test")
             self.assertTrue("graceid" in info_ret)
-            self.assertEqual(info_ret.get("alert_type"), at_string)
+            self.assertEqual(info_ret.get("alerttype"), at_string)
             self.assertTrue("eventpage" in info_ret)
-            self.assertTrue("skymap_url" in info_ret)
-            self.assertTrue("bnsprob" in info_ret)
-            self.assertTrue("nsbhprob" in info_ret)
-            self.assertTrue("bbhprob" in info_ret)
-            self.assertTrue("nsprob" in info_ret)
-            self.assertTrue("remnprob" in info_ret)
+            self.assertTrue("skymap_fits" in info_ret)
+            self.assertTrue("sourceprobs" in info_ret)
+            sourceprobs = info_ret["sourceprobs"]
+            self.assertTrue("BNS" in sourceprobs)
+            self.assertTrue("NSBH" in sourceprobs)
+            self.assertTrue("BBH" in sourceprobs)
+            self.assertTrue("MassGap" in sourceprobs)
+            self.assertTrue("Terrestrial" in sourceprobs)
+            self.assertTrue("nsprobs" in info_ret)
+            nsprobs = info_ret["nsprobs"]
+            self.assertTrue("HasNS" in nsprobs)
+            self.assertTrue("HasRemnant" in nsprobs)
             self.assertTrue("gcndatetime" in info_ret)
             self.assertTrue("datetime" in info_ret)
 
@@ -201,7 +213,7 @@ class TestListen(unittest.TestCase):
         self.assertTrue(isinstance(info_ret, dict))
         self.assertEqual(info_ret.get("role"), "test")
         self.assertTrue("graceid" in info_ret)
-        self.assertEqual(info_ret.get("alert_type"), "Retraction")
+        self.assertEqual(info_ret.get("alerttype"), "Retraction")
         self.assertTrue("eventpage" in info_ret)
         self.assertTrue(info_ret.get("skymap_url") is None)
         self.assertTrue(info_ret.get("bnsprob") is None)
@@ -242,7 +254,7 @@ class TestListen(unittest.TestCase):
 
         mock_config.side_effect = slackwebhook
         info = self.info.copy()
-        info["alert_type"] = "Preliminary"
+        info["alerttype"] = "Preliminary"
         torosgcn.listen.sendslack(info)
         self.assertTrue(mock_config.called)
         self.assertTrue(mock_post.called)
@@ -253,7 +265,7 @@ class TestListen(unittest.TestCase):
 
         # Test that nothing is sent with Updates or Initial
         for altype in ["Initial", "Update"]:
-            info["alert_type"] = altype
+            info["alerttype"] = altype
             mock_post.reset_mock()
             mock_config.reset_mock()
             torosgcn.listen.sendslack(info)
@@ -261,7 +273,7 @@ class TestListen(unittest.TestCase):
             self.assertFalse(mock_post.called)
 
         # Test that retractions are sent
-        info["alert_type"] = "Retraction"
+        info["alerttype"] = "Retraction"
         torosgcn.listen.sendslack(info)
         self.assertTrue(mock_config.called)
         self.assertTrue(mock_post.called)
@@ -493,7 +505,7 @@ class TestScheduler(unittest.TestCase):
             "role": "S",
             "graceid": "S190422ab",
             "datetime": "2019-04-22T03:23:12",
-            "alert_type": "Preliminary",
+            "alerttype": "Preliminary",
             "gcndatetime": "2019-04-22T00:00:00",
         }
         json_str = torosgcn.scheduler.broker_json(info, self.obs_trg)

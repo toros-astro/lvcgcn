@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 import gcn
 import gcn.handlers
@@ -29,11 +28,12 @@ def sendslack(info):
     else:
         logger.debug("Alert not Preliminary or Retraction.")
         return
-    msg_json = '{{text: "{}"}}'.format(msg_text)
+    msg_json = '{{"text": "{}"}}'.format(msg_text)
     response = requests.post(data=msg_json, url=webhook)
     if not response.ok:
         logger.error("Slack response not OK.")
         logger.debug(response)
+
 
 def sendemail(msg_text, subject, recipients=None, attachments=[]):
     """Will send out email with the message text in msg_text (string), subject (string)
@@ -162,7 +162,8 @@ def getinfo(root):
         if tag is not None:
             info[key.lower()] = tag.attrib["value"]
         else:
-            logger.error("Could not find tag `{}` in XML.".format(key))
+            if key != "skymap_fits":
+                logger.error("Could not find tag `{}` in XML.".format(key))
             info[key.lower()] = None
 
     # Time of the event
@@ -193,13 +194,13 @@ def getinfo(root):
 
     # Group NS merger probabilities together
     info["nsprobs"] = {}
-    for probname in ["HasNS", "HasRemnant"]
-    tag = root.find("./What//Param[@name='{}']".format(probname))
-    if tag is not None:
-        info["nsprobs"][probname] = tag.attrib["value"]
-    else:
-        logger.debug("Could not find tag `{}` in XML.".format(probname))
-        info["nsprobs"][probname] = None
+    for probname in ["HasNS", "HasRemnant"]:
+        tag = root.find("./What//Param[@name='{}']".format(probname))
+        if tag is not None:
+            info["nsprobs"][probname] = tag.attrib["value"]
+        else:
+            logger.debug("Could not find tag `{}` in XML.".format(probname))
+            info["nsprobs"][probname] = None
 
     return info
 
@@ -268,8 +269,8 @@ def backup_skymap(skymap_data, info):
     if not os.path.exists(skymap_bkpdir):
         os.makedirs(skymap_bkpdir)
 
-    skymap_bkpname = "skymap_basic_{}_{}.fits".format(
-        info.get("graceid"), info.get("alerttype")
+    skymap_bkpname = "{}_{}_{}.fits".format(
+        info.get("graceid"), info.get("pkt_ser_num"), info.get("alerttype")
     )
 
     skymap_path = os.path.join(skymap_bkpdir, skymap_bkpname)
@@ -287,8 +288,8 @@ def backup_voe(payload, info):
     if not os.path.exists(voevent_bkpdir):
         os.makedirs(voevent_bkpdir)
 
-    voevent_bkpname = "VOE_{}_{}.xml".format(
-        info.get("graceid"), info.get("alerttype")
+    voevent_bkpname = "{}_{}_{}.xml".format(
+        info.get("graceid"), info.get("pkt_ser_num"), info.get("alerttype")
     )
 
     voevent_path = os.path.join(voevent_bkpdir, voevent_bkpname)
