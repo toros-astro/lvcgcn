@@ -50,8 +50,8 @@ def broker_json(info, observatories):
             "datetime": info.get("datetime"),
         },
         "gcnnotice": {
-            "gcntype": info.get("alert_type"),
-            "gcnserial": info.get("gcnserial"),
+            "gcntype": info.get("alerttype"),
+            "gcnserial": info.get("pkt_ser_num"),
             "datetime": info.get("gcndatetime"),
         },
     }

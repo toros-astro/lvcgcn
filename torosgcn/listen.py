@@ -18,24 +18,21 @@ def sendslack(info):
     if webhook is None:
         logger.info("No Slack webhook found.")
         return
-    alert_type = info.get("alert_type")
-    if alert_type == "Preliminary":
-        probs = {}
-        for probkey, obj in zip(
-            ["bnsprob", "nsbhprob", "bbhprob"], ["BNS", "NS-BH", "BBH"]
-        ):
-            probs[obj] = info.get(probkey)
-        obj, prob = max(probs.items(), key=(lambda x: x[1]))
-        msg_text = ("New Event: {}.\nObject is most likely a {} ({:.2f}%).").format(
+    alerttype = info.get("alerttype")
+    if alerttype == "Preliminary":
+        obj, prob = max(info["sourceprobs"].items(), key=(lambda x: float(x[1])))
+        msg_text = ("New Event: {}.\nObject is most likely {} ({:.2f}%).").format(
             info.get("graceid"), obj, float(prob) * 100
         )
-    elif alert_type == "Retraction":
+    elif alerttype == "Retraction":
         msg_text = "Event {} was retracted.".format(info.get("graceid"))
     else:
         return
     msg_json = '{{text: "{}"}}'.format(msg_text)
-    requests.post(data=msg_json, url=webhook)
-
+    response = requests.post(data=msg_json, url=webhook)
+    if not response.ok:
+        logger.error("Slack response not OK.")
+        logger.debug(response)
 
 def sendemail(msg_text, subject, recipients=None, attachments=[]):
     """Will send out email with the message text in msg_text (string), subject (string)
@@ -101,7 +98,7 @@ def sendalertemail(payload, info):
         pre_subject = "[DRILL: Mock Alert] "
         pre_warning = "WARNING: The following is a Drill.\n"
     subject = "{}{} GCN for {}".format(
-        pre_subject, info.get("alert_type"), info.get("graceid")
+        pre_subject, info.get("alerttype"), info.get("graceid")
     )
     msg_text = """{}VOEvent from the LV-EM GCN system.
 
@@ -113,23 +110,28 @@ Sky map URL: {}
 
 Classification Probabilities:
 BNS: {}
-NS-BH: {}
+NSBH: {}
 BBH: {}
-NS Probability: {}
-Remnants Probability: {}""".format(
+Mass Gap: {}
+Terrestrial: {}
+-------------------
+
+Has NS Probability: {}
+Has Remnant Probability: {}""".format(
         pre_warning,
         info.get("graceid"),
         info.get("graceid"),
         info.get("eventpage"),
-        info.get("skymap_url"),
-        info.get("bnsprob"),
-        info.get("nsbhprob"),
-        info.get("bbhprob"),
-        info.get("nsprob"),
-        info.get("remnprob"),
+        info.get("skymap_fits"),
+        info["sourceprobs"].get("BNS"),
+        info["sourceprobs"].get("NSBH"),
+        info["sourceprobs"].get("BBH"),
+        info["sourceprobs"].get("MassGap"),
+        info["sourceprobs"].get("Terrestrial"),
+        info["nsprobs"].get("HasNS"),
+        info["nsprobs"].get("HasRemnant"),
     )
-
-    if info.get("alert_type") == "Retraction":
+    if info.get("alerttype") == "Retraction":
         msg_text = """{0}VOEvent from the LV-EM GCN system.
 
 This is a RETRACTION for SuperEvent with GraceID: {1}
@@ -154,79 +156,23 @@ def getinfo(root):
         logger.exception("Could not find tag `role` in XML.")
         info["role"] = None
 
-    tag_graceid = root.find("./What//Param[@name='GraceID']")
-    if tag_graceid is not None:
-        info["graceid"] = tag_graceid.attrib["value"]
+    for key in ["GraceID", "AlertType", "Pkt_Ser_Num", "EventPage", "skymap_fits"]:
+        tag = root.find("./What//Param[@name='{}']".format(key))
+        if tag is not None:
+            info[key.lower()] = tag.attrib["value"]
+        else:
+            logger.error("Could not find tag `{}` in XML.".format(key))
+            info[key.lower()] = None
+
+    # Time of the event
+    tag_datetime = root.find("./WhereWhen//ISOTime")
+    if tag_datetime is not None:
+        info["datetime"] = tag_datetime.text
     else:
-        logger.error("Could not find tag `GraceID` in XML.")
-        info["graceid"] = None
+        logger.error("Could not find tag `ISOTime` in XML.")
+        info["datetime"] = None
 
-    tag_gcnserial = root.find("./What//Param[@name='Pkt_Ser_Num']")
-    if tag_gcnserial is not None:
-        info["gcnserial"] = tag_gcnserial.attrib["value"]
-
-    tag_type = root.find("./What//Param[@name='Packet_Type']")
-    number_to_type = {
-        "150": "Preliminary",
-        "151": "Initial",
-        "152": "Update",
-        "164": "Retraction",
-    }
-    if tag_type is not None:
-        info["alert_type"] = number_to_type.get(tag_type.attrib["value"])
-    else:
-        logger.error("Could not process tag `Packet_Type` in XML.")
-        info["alert_type"] = None
-
-    tag_eventpage = root.find("./What//Param[@name='EventPage']")
-    if tag_eventpage is not None:
-        info["eventpage"] = tag_eventpage.attrib["value"]
-    else:
-        logger.error("Could not find tag `EventPage` in XML.")
-        info["eventpage"] = None
-
-    tag_url = root.find("./What//Param[@name='skymap_fits']")
-    if tag_url is not None:
-        info["skymap_url"] = tag_url.attrib["value"]
-    else:
-        logger.debug("Could not find tag `skymap_fits` in XML.")
-        info["skymap_url"] = None
-
-    tag_bnsprob = root.find("./What//Param[@name='BNS']")
-    if tag_bnsprob is not None:
-        info["bnsprob"] = tag_bnsprob.attrib["value"]
-    else:
-        logger.debug("Could not find tag `BNS` in XML.")
-        info["bnsprob"] = None
-
-    tag_nsbhprob = root.find("./What//Param[@name='NSBH']")
-    if tag_nsbhprob is not None:
-        info["nsbhprob"] = tag_nsbhprob.attrib["value"]
-    else:
-        logger.debug("Could not find tag `NSBH` in XML.")
-        info["nsbhprob"] = None
-
-    tag_bbhprob = root.find("./What//Param[@name='BBH']")
-    if tag_bbhprob is not None:
-        info["bbhprob"] = tag_bbhprob.attrib["value"]
-    else:
-        logger.debug("Could not find tag `BBH` in XML.")
-        info["bbhprob"] = None
-
-    tag_nsprob = root.find("./What//Param[@name='HasNS']")
-    if tag_nsprob is not None:
-        info["nsprob"] = tag_nsprob.attrib["value"]
-    else:
-        logger.debug("Could not find tag `HasNS` in XML.")
-        info["nsprob"] = None
-
-    tag_remnprob = root.find("./What//Param[@name='HasRemnant']")
-    if tag_remnprob is not None:
-        info["remnprob"] = tag_remnprob.attrib["value"]
-    else:
-        logger.debug("Could not find tag `HasRemnant` in XML.")
-        info["remnprob"] = None
-
+    # Time of the GCN Notice
     tag_gcndatetime = root.find("./Who//Date")
     if tag_gcndatetime is not None:
         info["gcndatetime"] = tag_gcndatetime.text
@@ -234,12 +180,26 @@ def getinfo(root):
         logger.error("Could not find tag `Date` in XML.")
         info["gcndatetime"] = None
 
-    tag_datetime = root.find("./WhereWhen//ISOTime")
-    if tag_datetime is not None:
-        info["datetime"] = tag_datetime.text
+    # Group source probabilities together
+    info["sourceprobs"] = {}
+    for probname in ["BNS", "NSBH", "BBH", "MassGap", "Terrestrial"]:
+        tag = root.find("./What//Param[@name='{}']".format(probname))
+        if tag is not None:
+            info["sourceprobs"][probname] = tag.attrib["value"]
+        else:
+            logger.debug("Could not find tag `{}` in XML.".format(probname))
+            info["sourceprobs"][probname] = None
+
+    # Group NS merger probabilities together
+    info["nsprobs"] = {}
+    for probname in ["HasNS", "HasRemnant"]
+    tag = root.find("./What//Param[@name='{}']".format(probname))
+    if tag is not None:
+        info["nsprobs"][probname] = tag.attrib["value"]
     else:
-        logger.error("Could not find tag `ISOTime` in XML.")
-        info["datetime"] = None
+        logger.debug("Could not find tag `{}` in XML.".format(probname))
+        info["nsprobs"][probname] = None
+
     return info
 
 
@@ -248,7 +208,7 @@ def retrieve_skymap(info):
     import requests
     import tempfile
 
-    fits_response = requests.get(info["skymap_url"], stream=False)
+    fits_response = requests.get(info.get("skymap_fits"), stream=False)
     fits_response.raise_for_status()
     fp = tempfile.NamedTemporaryFile()
     for block in fits_response.iter_content(1024):
@@ -308,7 +268,7 @@ def backup_skymap(skymap_data, info):
         os.makedirs(skymap_bkpdir)
 
     skymap_bkpname = "skymap_basic_{}_{}.fits".format(
-        info.get("graceid"), info.get("alert_type")
+        info.get("graceid"), info.get("alerttype")
     )
 
     skymap_path = os.path.join(skymap_bkpdir, skymap_bkpname)
@@ -327,7 +287,7 @@ def backup_voe(payload, info):
         os.makedirs(voevent_bkpdir)
 
     voevent_bkpname = "VOE_{}_{}.xml".format(
-        info.get("graceid"), info.get("alert_type")
+        info.get("graceid"), info.get("alerttype")
     )
 
     voevent_path = os.path.join(voevent_bkpdir, voevent_bkpname)
@@ -379,7 +339,7 @@ def process_gcn(payload, root):
 
     # Retrieve skymap and generate targets if necessary
     targets = None
-    if info.get("skymap_url") is not None:
+    if info.get("skymap_fits") is not None:
         try:
             skymap_data = retrieve_skymap(info)
             try:
@@ -393,7 +353,7 @@ def process_gcn(payload, root):
         except:
             logger.exception(
                 "Error downloading FITS skymap for Grace ID: {} from URL: {}".format(
-                    info.get("graceid"), info.get("skymap_url")
+                    info.get("graceid"), info.get("skymap_fits")
                 )
             )
     # Upload targets to broker site
