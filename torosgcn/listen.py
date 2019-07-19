@@ -27,6 +27,7 @@ def sendslack(info):
     elif alerttype == "Retraction":
         msg_text = "Event {} was retracted.".format(info.get("graceid"))
     else:
+        logger.debug("Alert not Preliminary or Retraction.")
         return
     msg_json = '{{text: "{}"}}'.format(msg_text)
     response = requests.post(data=msg_json, url=webhook)
