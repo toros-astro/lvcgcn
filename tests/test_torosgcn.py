@@ -549,6 +549,27 @@ NGC7793,359.457611,-32.59103,3.94486557231
 
         now = Time("2019-06-01T01:00:00")
         obs_ret = torosgcn.scheduler.generate_targets(skymap_path, detection_time=now)
+        self.assertEqual(len(obs_ret), 2)
+        eaba = obs_ret[0]
+        ctmo = obs_ret[1]
+        self.assertTrue("name" in eaba)
+        self.assertEqual("EABA", eaba.get("name"))
+        self.assertTrue("name" in ctmo)
+        self.assertEqual("CTMO", ctmo.get("name"))
+        self.assertTrue("targets" in eaba)
+        for targets in [eaba.get("targets"), ctmo.get("targets")]:
+            self.assertTrue("Name" in targets.colnames)
+            self.assertTrue("RA" in targets.colnames)
+            self.assertTrue("Dec" in targets.colnames)
+            self.assertTrue("Likelihood" in targets.colnames)
+            self.assertEqual(len(targets), 5)
+
+        # Test that it works if skymap is an hdulist
+        from astropy.io import fits
+        hdulist = fits.open(skymap_path)
+        fp.seek(0)
+        mock_config.get_config_for_key.side_effect = [self.obs, fp.name, cat_filters]
+        obs_ret = torosgcn.scheduler.generate_targets(hdulist, detection_time=now)
         fp.close()
         self.assertEqual(len(obs_ret), 2)
         eaba = obs_ret[0]

@@ -79,29 +79,13 @@ def generate_targets(skymap, detection_time=None):
     import healpy as hp
     from scipy.stats import norm
 
-    skymap_path = None
-    if isinstance(skymap, bytes):
-        from tempfile import NamedTemporaryFile
-
-        fp = NamedTemporaryFile()
-        skymap_path = fp.name
-        fp.write(skymap)
-        fp.seek(0)
-    elif isinstance(skymap, str):
-        skymap_path = skymap
-    else:
-        raise TypeError(
-            "{} for first argument should be 'bytes', or 'str' with file path.".format(
-                type(skymap)
-            )
-        )
     contains_dist_estimation = True
     try:
         aligo_banana, distmu, distsigma, distnorm = hp.read_map(
-            skymap_path, verbose=False, field=range(4)
+            skymap, verbose=False, field=range(4)
         )
     except:
-        aligo_banana = hp.read_map(skymap_path, verbose=False)
+        aligo_banana = hp.read_map(skymap, verbose=False)
         contains_dist_estimation = False
 
     npix = len(aligo_banana)

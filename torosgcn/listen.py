@@ -206,19 +206,21 @@ def getinfo(root):
 
 
 def retrieve_skymap(info):
-    "Fetch skymap FITS file from GraceDB service. Return skymap FITS as raw bytes"
+    "Fetch skymap FITS file from GraceDB service. Return skymap FITS as HDUList"
     import requests
     import tempfile
+    from astropy.io import fits
 
     fits_response = requests.get(info.get("skymap_fits"), stream=False)
-    fits_response.raise_for_status()
+    if not fits_response.ok:
+        logger.error("Downloading Skymap response not OK.")
     fp = tempfile.NamedTemporaryFile()
     for block in fits_response.iter_content(1024):
         fp.write(block)
     fp.seek(0)
-    skymap_data = fp.read()
+    skymap_hdulist = fits.open(fp.name)
     fp.close()
-    return skymap_data
+    return skymap_hdulist
 
 
 def upload_gcnnotice(info, targets=None):
@@ -260,7 +262,7 @@ def upload_gcnnotice(info, targets=None):
     logger.debug("Target JSON sent to broker:\n{}".format(targetsjson))
 
 
-def backup_skymap(skymap_data, info):
+def backup_skymap(skymap_hdulist, info):
     "Save to file the skymap FITS file asociated with this GCN Notice"
     bkp_config = config.get_config_for_key("Backup")
     if not bkp_config.get("Backup Skymap"):
@@ -274,8 +276,7 @@ def backup_skymap(skymap_data, info):
     )
 
     skymap_path = os.path.join(skymap_bkpdir, skymap_bkpname)
-    with open(skymap_path, "wb") as fp:
-        fp.write(skymap_data)
+    skymap_hdulist.writeto(skymap_path)
     logger.info("Skymap file {} copied to {}".format(skymap_bkpname, skymap_bkpdir))
 
 
@@ -343,13 +344,13 @@ def process_gcn(payload, root):
     targets = None
     if info.get("skymap_fits") is not None:
         try:
-            skymap_data = retrieve_skymap(info)
+            skymap_hdulist = retrieve_skymap(info)
             try:
-                backup_skymap(skymap_data, info)
+                backup_skymap(skymap_hdulist, info)
             except:
                 logger.exception("Problem backing-up skymap")
             try:
-                targets = scheduler.generate_targets(skymap_data)
+                targets = scheduler.generate_targets(skymap_hdulist)
             except:
                 logger.exception("Error generating targets")
         except:
