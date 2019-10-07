@@ -448,8 +448,28 @@ class TestListen(unittest.TestCase):
 
 class TestScheduler(unittest.TestCase):
     def setUp(self):
+        self.info = {
+            "role": "drill",
+            "graceid": "D190422ab",
+            "alerttype": "Initial",
+            "pkt_ser_num": 2,
+            "eventpage": "http://someurl.com/view",
+            "skymap_fits": "http://download/skymap",
+            "sourceprobs": {
+                "BNS": 0.7,
+                "NSBH": 0.1,
+                "BBH": 0.05,
+                "MassGap": 0.02,
+                "Terrestrial": 0.0,
+                },
+            "nsprobs": {
+                "HasNS": 0.5,
+                "HasRemnant": 0.99,
+                },
+            "gcndatetime": "2019-04-22T00:00:00",
+            "datetime": "2019-04-22T03:12:23",
+        }
         from astropy.coordinates import EarthLocation
-
         self.obs = [
             {
                 "name": "EABA",
@@ -586,6 +606,10 @@ NGC7793,359.457611,-32.59103,3.94486557231
             self.assertTrue("Likelihood" in targets.colnames)
             self.assertEqual(len(targets), 5)
 
+    def test_graphtargets(self):
+        skymap = "./tests/test_bayestar.fits.gz"
+        graphbytes = torosgcn.scheduler.graphtargets(self.info, self.obs_trg, skymap)
+        self.assertTrue(type(graphbytes), bytes)
 
 if __name__ == "__main__":
     unittest.main()

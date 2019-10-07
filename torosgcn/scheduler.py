@@ -143,6 +143,7 @@ def graphtargets(info, targets, skymap):
     "Generate a graph with the targets generated over the sky map"
     import healpy as hp
     from io import BytesIO
+    import matplotlib.pyplot as plt
 
     aligo_banana = hp.read_map(skymap)
     numfig = 1
