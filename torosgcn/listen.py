@@ -353,6 +353,19 @@ def process_gcn(payload, root):
                 targets = scheduler.generate_targets(skymap_hdulist)
             except:
                 logger.exception("Error generating targets")
+            try:
+                graphbytes = scheduler.graphtargets(info, targets, skymap)
+                msg_text = "Sky map with targets attached."
+                subject = "Sky map with targets"
+                ADMIN_EMAILS = config.get_config_for_key("Admin Emails")
+                sendemail(
+                    msg_text,
+                    subject,
+                    recipients=ADMIN_EMAILS,
+                    attachments=[(graphbytes, "skymap.png")],
+                )
+            except:
+                logger.exception("Error sending targets graph")
         except:
             logger.exception(
                 "Error downloading FITS skymap for Grace ID: {} from URL: {}".format(

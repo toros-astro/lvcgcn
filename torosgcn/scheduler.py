@@ -137,3 +137,37 @@ def generate_targets(skymap, detection_time=None):
         obs["targets"] = sample[: catfilters.get("NUM_TARGETS")]
         # obs['targets'].sort('Abs_Mag')
     return observatories
+
+
+def graphtargets(info, targets, skymap):
+    "Generate a graph with the targets generated over the sky map"
+    import healpy as hp
+    from io import BytesIO
+
+    aligo_banana = hp.read_map(skymap)
+    numfig = 1
+    fig = plt.figure(numfig, figsize=(10, 5))
+    graph_title = "{} -{}-{}\nBayestar Prob. Sky Map with Targets".format(
+        info["graceid"], info["pkt_ser_num"], info["alerttype"]
+    )
+    hp.mollview(
+        aligo_banana,
+        title=graph_title,
+        flip="astro",
+        unit="$\Delta$",
+        fig=numfig,
+        cmap=plt.cm.gist_heat_r,
+    )
+    fig.axes[1].texts[0].set_fontsize(8)
+
+    for obs in targets:
+        ra_pointings = np.array(obs["targets"]["RA"])
+        dec_pointings = np.array(obs["targets"]["Dec"])
+        hp.projscatter(
+            ra_pointings, dec_pointings, lonlat=True, color="green", marker="."
+        )
+    hp.graticule()
+
+    graphIO = BytesIO()
+    plt.savefig(graphIO)
+    return graphIO.getvalue()
