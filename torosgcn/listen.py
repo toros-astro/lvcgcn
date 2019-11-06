@@ -354,7 +354,7 @@ def process_gcn(payload, root):
             except:
                 logger.exception("Error generating targets")
             try:
-                graphbytes = scheduler.graphtargets(info, targets, skymap)
+                graphbytes = scheduler.graphtargets(info, targets, skymap_hdulist)
                 msg_text = "Sky map with targets attached."
                 subject = "Sky map with targets"
                 ADMIN_EMAILS = config.get_config_for_key("Admin Emails")
