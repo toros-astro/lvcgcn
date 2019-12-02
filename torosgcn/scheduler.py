@@ -14,8 +14,8 @@ def alpha_cuts(observation_time, horizon=-15 * u.degree, min_height=30 * u.degre
     sun = astropy.coordinates.get_sun(observation_time)
     horiz = horizon.to(u.degree)
     h = min_height.to(u.degree)
-    lowest_alpha = (sun.ra - horiz + h).to(u.hourangle).value
-    highest_alpha = (sun.ra + horiz - h).to(u.hourangle).value
+    lowest_alpha = (sun.ra - horiz + h).degree
+    highest_alpha = (sun.ra + horiz - h).degree
     return lowest_alpha, highest_alpha
 
 
