@@ -388,5 +388,17 @@ def main():
     gcn.listen(handler=process_gcn)
 
 
+def manual_process():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('filepath', help='The file path for the xml VOEvent.')
+    args = parser.parse_args()
+    with open(args.filepath, "rb") as f:
+        payload = f.read()
+    from lxml.etree import fromstring
+    root = fromstring(payload)
+    process_gcn(payload, root)
+
+
 if __name__ == "__main__":
     main()

@@ -26,5 +26,10 @@ setup(
         "loguru",
     ],
     test_suite="tests",
-    entry_points={"console_scripts": ["lvcgcn = torosgcn.listen:main"]},
+    entry_points={
+        "console_scripts": [
+            "lvcgcn = torosgcn.listen:main",
+            "process_gcn = torosgcn.listen:manual_process",
+        ]
+    },
 )
