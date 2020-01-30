@@ -9,13 +9,14 @@ The responder lvcgcnd is a `daemon`_ managed by the `systemd`_ service found in 
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :hidden:
 
    install
    workflow
    config
    json
    catalog
+   utils
 
 .. _TOROS: https://toros.utrgv.edu
 .. _GCN: https://gcn.gsfc.nasa.gov
