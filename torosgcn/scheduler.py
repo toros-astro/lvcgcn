@@ -7,6 +7,7 @@ from astropy.io import ascii
 from astropy.table import Column
 from astropy.time import Time
 from . import config
+from loguru import logger
 
 
 def alpha_cuts(observation_time, horizon=-15 * u.degree, min_height=30 * u.degree):
@@ -87,6 +88,7 @@ def generate_targets(skymap, detection_time=None):
     except:
         aligo_banana = hp.read_map(skymap, verbose=False)
         contains_dist_estimation = False
+        logger.warning("Sky Map does not contain distance estimation.")
 
     npix = len(aligo_banana)
     nside = hp.npix2nside(npix)
@@ -137,6 +139,25 @@ def generate_targets(skymap, detection_time=None):
         obs["targets"] = sample[: catfilters.get("NUM_TARGETS")]
         # obs['targets'].sort('Abs_Mag')
     return observatories
+
+
+def get_distance(skymap, info):
+    import healpy as hp
+    contains_dist_estimation = True
+    try:
+        aligo_banana, distmu, distsigma, distnorm = hp.read_map(
+            skymap, verbose=False, field=range(4)
+        )
+    except:
+        logger.warning("Problem estimating distance.")
+        info["dist"] = None
+        info["dist_err"] = None
+
+        return
+
+    ipix_max = np.argmax(aligo_banana)
+    info["dist"] = distmu[ipix_max]
+    info["dist_err"] = distsigma[ipix_max]
 
 
 def graphtargets(info, targets, skymap):

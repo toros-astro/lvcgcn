@@ -20,8 +20,13 @@ def sendslack(info):
     alerttype = info.get("alerttype")
     if alerttype == "Preliminary":
         obj, prob = max(info["sourceprobs"].items(), key=(lambda x: float(x[1])))
-        msg_text = ("New Event: {}.\nObject is most likely {} ({:.2f}%).").format(
-            info.get("graceid"), obj, float(prob) * 100
+        msg_text = (
+            "New Event: {}.\nObject is most likely {} ({:.2f}%).\nDistance: {:.0f} Mpc."
+        ).format(
+            info.get("graceid"),
+            obj,
+            float(prob) * 100,
+            info.get("dist") or -1.0,
         )
     elif alerttype == "Retraction":
         msg_text = "Event {} was retracted.".format(info.get("graceid"))
@@ -89,7 +94,7 @@ def sendemail(msg_text, subject, recipients=None, attachments=[]):
         logger.error("SMTP Service not configured. Unable to send email.")
 
 
-def sendalertemail(payload, info):
+def sendalertemail(payload, info, targets_graph=None):
     "Prepare and send the notification email of a new alert"
     pre_subject, pre_warning = "", ""
     if info.get("role") == "test":
@@ -108,6 +113,7 @@ Grace ID: {}
 TOROS Broker Page: https://toros.utrgv.edu/broker/alert/{}
 GraceDB Event Page: {}
 Sky map URL: {}
+Distance Estimation: {:.2f} (+/- {:.0f}) Mpc.
 
 Classification Probabilities:
 BNS: {}
@@ -124,6 +130,8 @@ Has Remnant Probability: {}""".format(
         info.get("graceid"),
         info.get("eventpage"),
         info.get("skymap_fits"),
+        info.get("dist") or 0.,
+        info.get("dist_err") or 0.,
         info["sourceprobs"].get("BNS"),
         info["sourceprobs"].get("NSBH"),
         info["sourceprobs"].get("BBH"),
@@ -143,9 +151,10 @@ or the GraceDB Event Page: {2}
         )
     ADMIN_EMAILS = config.get_config_for_key("Admin Emails")
     recipients = ADMIN_EMAILS if info.get("role") == "test" else None
-    sendemail(
-        msg_text, subject, recipients=recipients, attachments=[(payload, "VOEvent.xml")]
-    )
+    attachments = [(payload, "VOEvent.xml")]
+    if targets_graph is not None:
+        attachments.append((targets_graph, "skymap.png"))
+    sendemail(msg_text, subject, recipients=recipients, attachments=attachments)
 
 
 def getinfo(root):
@@ -327,19 +336,6 @@ def process_gcn(payload, root):
     except:
         logger.exception("Error backing up VOE file.")
 
-    # Send Alert by email
-    try:
-        sendalertemail(payload, info)
-    except:
-        logger.exception("Error sending alert email.")
-
-    # Send Alert to Slack
-    try:
-        sendslack(info)
-        logger.info("Alert message sent to Slack.")
-    except:
-        logger.exception("Error sending Slack message.")
-
     # Retrieve skymap and generate targets if necessary
     targets = None
     if info.get("skymap_fits") is not None:
@@ -355,23 +351,33 @@ def process_gcn(payload, root):
                 logger.exception("Error generating targets")
             try:
                 graphbytes = scheduler.graphtargets(info, targets, skymap_hdulist)
-                msg_text = "Sky map with targets attached."
-                subject = "Sky map with targets"
-                ADMIN_EMAILS = config.get_config_for_key("Admin Emails")
-                sendemail(
-                    msg_text,
-                    subject,
-                    recipients=ADMIN_EMAILS,
-                    attachments=[(graphbytes, "skymap.png")],
-                )
             except:
+                graphbytes = None
                 logger.exception("Error sending targets graph")
+            try:
+                scheduler.get_distance(skymap_hdulist, info)
+            except:
+                logger.exception("Error getting distance")
         except:
             logger.exception(
                 "Error downloading FITS skymap for Grace ID: {} from URL: {}".format(
                     info.get("graceid"), info.get("skymap_fits")
                 )
             )
+
+    # Send Alert by email
+    try:
+        sendalertemail(payload, info, targets_graph=graphbytes)
+    except:
+        logger.exception("Error sending alert email.")
+
+    # Send Alert to Slack
+    try:
+        sendslack(info)
+        logger.info("Alert message sent to Slack.")
+    except:
+        logger.exception("Error sending Slack message.")
+
     # Upload targets to broker site
     try:
         upload_gcnnotice(info, targets)
