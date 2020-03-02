@@ -143,6 +143,8 @@ def generate_targets(skymap, detection_time=None):
 
 def get_distance(skymap, info):
     import healpy as hp
+    from scipy.stats import norm
+
     contains_dist_estimation = True
     try:
         aligo_banana, distmu, distsigma, distnorm = hp.read_map(
@@ -152,11 +154,16 @@ def get_distance(skymap, info):
         logger.warning("Problem estimating distance.")
         info["dist"] = None
         info["dist_err"] = None
-
         return
 
     ipix_max = np.argmax(aligo_banana)
-    info["dist"] = distmu[ipix_max]
+    peak_est = distmu[ipix_max]
+    r = np.linspace(0, int(2.5 * peak_est))
+    dp_dr = [
+        np.sum(aligo_banana * rr ** 2 * distnorm * norm(distmu, distsigma).pdf(rr))
+        for rr in r
+    ]
+    info["dist"] = np.sum(r * dp_dr) / np.sum(dp_dr)
     info["dist_err"] = distsigma[ipix_max]
 
 

@@ -22,12 +22,7 @@ def sendslack(info):
         obj, prob = max(info["sourceprobs"].items(), key=(lambda x: float(x[1])))
         msg_text = (
             "New Event: {}.\nObject is most likely {} ({:.2f}%).\nDistance: {:.0f} Mpc."
-        ).format(
-            info.get("graceid"),
-            obj,
-            float(prob) * 100,
-            info.get("dist") or -1.0,
-        )
+        ).format(info.get("graceid"), obj, float(prob) * 100, info.get("dist") or -1.0)
     elif alerttype == "Retraction":
         msg_text = "Event {} was retracted.".format(info.get("graceid"))
     else:
@@ -130,8 +125,8 @@ Has Remnant Probability: {}""".format(
         info.get("graceid"),
         info.get("eventpage"),
         info.get("skymap_fits"),
-        info.get("dist") or 0.,
-        info.get("dist_err") or 0.,
+        info.get("dist") or 0.0,
+        info.get("dist_err") or 0.0,
         info["sourceprobs"].get("BNS"),
         info["sourceprobs"].get("NSBH"),
         info["sourceprobs"].get("BBH"),
