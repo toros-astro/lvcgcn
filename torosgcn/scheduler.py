@@ -153,7 +153,6 @@ def get_distance(skymap, info):
     except:
         logger.warning("Problem estimating distance.")
         info["dist"] = None
-        info["dist_err"] = None
         return
 
     ipix_max = np.argmax(aligo_banana)
@@ -164,7 +163,6 @@ def get_distance(skymap, info):
         for rr in r
     ]
     info["dist"] = np.sum(r * dp_dr) / np.sum(dp_dr)
-    info["dist_err"] = distsigma[ipix_max]
 
 
 def graphtargets(info, targets, skymap):

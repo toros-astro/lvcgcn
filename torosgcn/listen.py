@@ -108,7 +108,7 @@ Grace ID: {}
 TOROS Broker Page: https://toros.utrgv.edu/broker/alert/{}
 GraceDB Event Page: {}
 Sky map URL: {}
-Distance Estimation: {:.2f} (+/- {:.0f}) Mpc.
+Distance Estimation: {:.2f} Mpc.
 
 Classification Probabilities:
 BNS: {}
@@ -126,7 +126,6 @@ Has Remnant Probability: {}""".format(
         info.get("eventpage"),
         info.get("skymap_fits"),
         info.get("dist") or 0.0,
-        info.get("dist_err") or 0.0,
         info["sourceprobs"].get("BNS"),
         info["sourceprobs"].get("NSBH"),
         info["sourceprobs"].get("BBH"),
