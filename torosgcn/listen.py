@@ -332,6 +332,7 @@ def process_gcn(payload, root):
 
     # Retrieve skymap and generate targets if necessary
     targets = None
+    graphbytes = None
     if info.get("skymap_fits") is not None:
         try:
             skymap_hdulist = retrieve_skymap(info)
@@ -341,13 +342,12 @@ def process_gcn(payload, root):
                 logger.exception("Problem backing-up skymap")
             try:
                 targets = scheduler.generate_targets(skymap_hdulist)
+                try:
+                    graphbytes = scheduler.graphtargets(info, targets, skymap_hdulist)
+                except:
+                    logger.exception("Error graphing targets")
             except:
                 logger.exception("Error generating targets")
-            try:
-                graphbytes = scheduler.graphtargets(info, targets, skymap_hdulist)
-            except:
-                graphbytes = None
-                logger.exception("Error sending targets graph")
             try:
                 scheduler.get_distance(skymap_hdulist, info)
             except:
