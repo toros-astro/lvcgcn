@@ -303,6 +303,7 @@ def backup_voe(payload, info):
 
 
 @gcn.handlers.include_notice_types(
+    gcn.notice_types.LVC_EARLY_WARNING,
     gcn.notice_types.LVC_PRELIMINARY,
     gcn.notice_types.LVC_INITIAL,
     gcn.notice_types.LVC_UPDATE,
